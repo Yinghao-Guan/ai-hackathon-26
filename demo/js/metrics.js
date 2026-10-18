@@ -5,7 +5,7 @@ export const METHODS = ["A0", "A1", "A2", "A3", "A5-H1", "A5-H2"];
 export const MACHINES = ["4090", "4070", "mac"];
 export const ROLES = ["coder", "reviewer"];
 export const TIMING_MACHINE = "4090";
-export const DEFAULT_CTX_K = 3; // PLAN.md: the main eval uses ≈3k tokens of shared context
+export const DEFAULT_CTX_K = 2; // the main eval: ctx_funcs=30 gives ≈1.5–1.9k tokens of shared context, as in training
 export const MOCK_PREFIX = "mock-";
 
 export const METHOD_META = {
@@ -166,6 +166,14 @@ export function mean(values) {
   return values.reduce((s, v) => s + v, 0) / values.length;
 }
 
+/**
+ * Context-sweep runs (bench/cost_sweep.py, run_id "sweep-<method>-ctx<N>k") replay one forced conversation:
+ * they measure cost only, so their `passed` says nothing about quality and they never enter the main comparison.
+ */
+export function isSweepRun(run) {
+  return /^sweep-/i.test(run.run_id);
+}
+
 /** Nominal context size in k tokens from a run_id such as "a5h1-1.5b-ctx3k", or null. */
 export function nominalCtxK(runId) {
   const m = /ctx(\d+(?:\.\d+)?)k/i.exec(runId);
@@ -216,7 +224,7 @@ function pickRun(candidates) {
  * Returns {ctxK, ambiguous, notes, byMethod: {method: {run, alternatives}}}.
  */
 export function selectDefaultContextRuns(runs) {
-  const all = [...runs.values()].filter((r) => r.tasks.size > 0 && r.ctxK !== null);
+  const all = [...runs.values()].filter((r) => r.tasks.size > 0 && r.ctxK !== null && !isSweepRun(r));
   const notes = [];
   let ctxK = DEFAULT_CTX_K;
   let ambiguous = false;
@@ -365,7 +373,10 @@ export function costQualityRows(selection) {
  */
 export function sweepSeries(runs) {
   const byK = new Map();
-  for (const run of runs.values()) {
+  // Prefer dedicated sweep runs: they replay the same conversation at every size, so points are comparable.
+  const all = [...runs.values()];
+  const pool = all.some(isSweepRun) ? all.filter(isSweepRun) : all;
+  for (const run of pool) {
     if (run.ctxK === null || run.tasks.size === 0) continue;
     if (run.method !== "A2" && run.method !== "A5-H1") continue;
     if (!byK.has(run.ctxK)) byK.set(run.ctxK, { A2: [], "A5-H1": [] });
@@ -402,20 +413,27 @@ export function turnSegments(turn) {
 
 /**
  * Token positions of one turn on the session tape, in tokens from the start of the session.
- * The cache holds [0, reused); [reused, inputEnd) is prefilled this turn; the role then writes
- * [inputEnd, end). H1 canonicalization re-reads the turn's header + output, the last canon_tokens before end.
+ * The cache holds [0, reused). Under A5-H1 the turn first re-reads the previous turn's header and output with
+ * base weights, [reused, reused + canon) (CONTRACT.md section 3: canon counts on the turn that does it), then
+ * prefills [reused + canon, inputEnd); the role then writes [inputEnd, end). So every method's tape for a turn
+ * has the same length.
  */
 export function tapeSpans(turn) {
-  const inputEnd = turn.reused_tokens + turn.prefill_tokens;
+  const canonEnd = turn.reused_tokens + turn.canon_tokens;
+  const inputEnd = canonEnd + turn.prefill_tokens;
   const end = inputEnd + turn.decode_tokens;
-  const canon = Math.min(turn.canon_tokens, end);
   return {
     reused: [0, turn.reused_tokens],
-    recomputed: [turn.reused_tokens, inputEnd],
+    canon: turn.canon_tokens ? [turn.reused_tokens, canonEnd] : null,
+    recomputed: [canonEnd, inputEnd],
     written: [inputEnd, end],
-    canon: canon ? [end - canon, end] : null,
     end,
   };
+}
+
+/** The token count that fills a tape's full width when these turns are drawn on one scale: the longest end. */
+export function tapeScale(turns) {
+  return Math.max(1, ...turns.map((t) => tapeSpans(t).end));
 }
 
 /** Task ids that have turn records in both runs (for the replay task picker). */

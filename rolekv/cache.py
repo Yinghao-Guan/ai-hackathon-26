@@ -9,6 +9,13 @@ role header starts in `ids`). Each forward turns it into PEFT's per-call
 offset, so a merged prefill, a chunked prefill and a one-token decode step all
 use the same rule. Never let PEFT search for the invocation itself: a one-token
 decode chunk does not contain it, and PEFT then silently turns the adapter off.
+
+Forwards call the Hugging Face model inside the PeftModel directly, for every
+method. PeftModel.forward walks every module and registers a hook on each LoRA
+layer on every aLoRA call; on the 4090 that cost ~5 ms per decoded token (15%).
+Instead, `_offset_hooks` registers one persistent hook per LoRA layer, once per
+model, and the offsets are handed over through a shared slot that is set only
+for the duration of our own forward.
 """
 
 from __future__ import annotations
@@ -34,6 +41,30 @@ def is_alora(model, adapter: str | None) -> bool:
     return bool(getattr(model.peft_config[adapter], "alora_invocation_tokens", None))
 
 
+def _offset_hooks(model) -> dict:
+    """Install, once per model, a pre-hook on every LoRA layer that passes on the current aLoRA offsets.
+
+    Returns the shared slot. While `slot["offsets"]` is None the hooks do
+    nothing, so calls through PeftModel.forward behave exactly as without them.
+    """
+    slot = getattr(model, "_rolekv_offset_slot", None)
+    if slot is None:
+        from peft.tuners.lora.layer import LoraLayer
+
+        slot = {"offsets": None}
+
+        def inject(module, args, kwargs):
+            if slot["offsets"] is not None:
+                kwargs["alora_offsets"] = slot["offsets"]
+            return args, kwargs
+
+        for module in model.modules():
+            if isinstance(module, LoraLayer):
+                module.register_forward_pre_hook(inject, with_kwargs=True)
+        model._rolekv_offset_slot = slot
+    return slot
+
+
 def clear_alora_hooks(model) -> int:
     """Remove aLoRA offset hooks that PEFT leaves behind when a forward raises.
 
@@ -57,6 +88,9 @@ class KVSession:
     def __init__(self, model, config=None):
         fast_alora.install()  # PEFT's masked aLoRA forward syncs with the GPU on every layer
         self.model = model
+        peft = is_peft(model)
+        self._forward = model.get_base_model() if peft else model  # skips PeftModel.forward's per-call hooks
+        self._offset_slot = _offset_hooks(model) if peft else None
         self.config = config if config is not None else model.config
         self.device = next(model.parameters()).device
         self.ids: list[int] = []
@@ -112,18 +146,19 @@ class KVSession:
         if not pending:
             raise ValueError("nothing to prefill")
         start, end = self.cache_len, len(self.ids)
-        kwargs = {}
         if is_alora(self.model, self.active):
             offset = 0 if alora_start is None else max(0, end - max(alora_start, start))
-            kwargs["alora_offsets"] = [offset]
+            self._offset_slot["offsets"] = [offset]
         input_ids = torch.tensor([pending], dtype=torch.long, device=self.device)
         try:
-            out = self.model(input_ids=input_ids, past_key_values=self.cache, use_cache=True,
-                             logits_to_keep=keep, **kwargs)
+            out = self._forward(input_ids=input_ids, past_key_values=self.cache, use_cache=True, logits_to_keep=keep)
         except BaseException:
             clear_alora_hooks(self.model)
             self.broken = True  # some layers may already hold the new tokens
             raise
+        finally:
+            if self._offset_slot is not None:
+                self._offset_slot["offsets"] = None
         self.forward_tokens += len(pending)
         return out.logits[0]
 

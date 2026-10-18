@@ -1,7 +1,8 @@
 // The session tape: one turn of a session drawn to scale as a strip of tokens.
 // Paper = tokens in the session so far. Cyan rule = held in the KV cache, reused for free.
 // Coral ink = prefilled this turn. Outline = written by the role this turn. Violet underline = the H1
-// handoff re-read of the turn's header and output. Ink is cost; everything uninked was free.
+// handoff: the previous turn's header and output, re-read at the start of this turn. Ink is cost;
+// everything uninked was free.
 import { tapeSpans } from "./metrics.js";
 import { el, svg, fmtInt, reducedMotion } from "./ui.js";
 

@@ -25,6 +25,8 @@ def test_cost_sweep_smoke(model, tokenizer, tmp_path):
                             machine="mac", turns=SHORT_TURNS)
     assert len(records) == 2 * 2 * len(methods) * 5  # repeats x sizes x methods x (4 turns + 1 task line)
     assert len((tmp_path / "sweep.jsonl").read_text().splitlines()) == len(records)
+    # one run_id per method and size, which the dashboard needs to place sweep points
+    assert {r["run_id"] for r in records} == {f"sweep-{m}-ctx{k}k" for m in methods for k in ("0.1", "0.4")}
 
     rows = summarize_records(records)  # raises if token counts differ across repeats
     assert len(rows) == 2 * len(methods)

@@ -41,10 +41,18 @@
 
 **1:20 — Results**
 
-> On `[[N]]` MBPP problems with a 3,000-token shared context, the aLoRA agent computed `[[X.XX]]` times fewer
-> prefill tokens than per-role LoRAs, `[[YY]]` percent fewer, with a pass rate of `[[A5-H1 %]]` versus
-> `[[A2 %]]`. `[[If the gap is >0: "That's a [[d]]-point drop we're still working on." If ≈0: "with no
-> measurable drop on this set."]]`
+> In the same four-turn session, RoleKV computed about four times fewer tokens than per-role LoRAs, at
+> every context size from one to eight thousand tokens. The first token after a role switch arrived in about
+> 50 milliseconds whatever the context size. Per-role LoRAs went from about 90 to almost 600 milliseconds.
+>
+> And quality: on 100 MBPP problems, with about 1,800 tokens of shared context, RoleKV passed 61, and
+> per-role LoRAs passed 59. That's no measurable drop, at a third of the prefill compute and three times faster
+> role switches.
+>
+> *(If a judge asks about the other baselines:)* One shared LoRA, or simply reusing the mismatched cache,
+> scored about the same here. What RoleKV adds is that the sharing is exact by construction, and every role
+> keeps its own adapter. Our honest weak spot: on a second review, the aLoRA Reviewer tends to approve, because
+> our training data never had a second review.
 
 **1:45 — Caveats**
 

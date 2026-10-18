@@ -161,7 +161,9 @@ def generate_trajectory(
 
     training_rows = list(training_rows)
     task_segment = build_task_segment(task, training_rows, ctx_funcs=ctx_funcs)
-    initial_segments = [system_segment(teacher.system_prompt), task_segment, role_header("coder")]
+    # The student's context always uses the contract's system segment, the same one the runtime uses at eval.
+    # The teacher's own system prompt is separate and never appears in the training data.
+    initial_segments = [system_segment(), task_segment, role_header("coder")]
 
     if request_bug:
         buggy_text = teacher.ask(_coder_prompt(task_segment, request_bug=True), max_tokens=512)
@@ -256,6 +258,23 @@ def export_sft(trajectories: Iterable[Mapping[str, Any]], output_dir: Path) -> d
     return results
 
 
+def normalize_system_segments(trajectories: Iterable[dict[str, Any]]) -> int:
+    """Replace each turn's system segment with the contract's; returns how many were changed.
+
+    Data generated before the fix used the teacher's system prompt here, which
+    differs from what the runtime puts in front of every session at eval.
+    """
+    expected = system_segment()
+    changed = 0
+    for trajectory in trajectories:
+        for turn in trajectory["turns"]:
+            first = turn["segments"][0]
+            if first.startswith("<|im_start|>system\n") and first != expected:
+                turn["segments"][0] = expected
+                changed += 1
+    return changed
+
+
 def write_readme(path: Path, *, trajectories: int, stats: Mapping[str, tuple[int, str]]) -> None:
     lines = ["# RoleKV SFT data", "", f"Verified trajectories: {trajectories}", ""]
     for role in ("coder", "reviewer"):
@@ -272,12 +291,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bug-rate", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--system-prompt", default=SYSTEM_PROMPT)
+    parser.add_argument("--system-prompt", default=SYSTEM_PROMPT,
+                        help="system prompt for the teacher model only; student data always uses roles.system_segment()")
+    parser.add_argument("--reexport", action="store_true",
+                        help="no API calls: rebuild the SFT files and README from <out>/trajectories.jsonl, "
+                             "normalizing system segments")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.reexport:
+        path = args.out / "trajectories.jsonl"
+        trajectories = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        changed = normalize_system_segments(trajectories)
+        write_jsonl(path, trajectories)
+        stats = export_sft(trajectories, args.out)
+        write_readme(args.out / "README.md", trajectories=len(trajectories), stats=stats)
+        print(f"Re-exported {len(trajectories)} trajectories; normalized {changed} system segments.")
+        return
     if args.limit < 1 or not 0 <= args.bug_rate <= 1:
         raise SystemExit("--limit must be positive and --bug-rate must be between 0 and 1")
     load_dotenv()

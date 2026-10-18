@@ -105,6 +105,7 @@ def evaluate(
                 "passed": test_result.passed,
                 "n_turns": len(normalized_turns),
                 "prefill_tokens_total": sum(turn["prefill_tokens"] + turn["canon_tokens"] for turn in normalized_turns),
+                "canon_tokens_total": sum(turn["canon_tokens"] for turn in normalized_turns),
                 "decode_tokens_total": sum(turn["decode_tokens"] for turn in normalized_turns),
                 "gpu_s": session.get("gpu_s", time.monotonic() - started),
                 "peak_kv_mb": max(turn["kv_mb"] for turn in normalized_turns),
@@ -118,7 +119,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runner", required=True, help="Runtime factory as module:factory.")
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--run-id", required=True,
+                        help="prefix; each method is logged as <run-id>-<method>, since a run_id has one method")
     parser.add_argument("--machine", required=True, choices=("4090", "4070", "mac"))
     parser.add_argument("--methods", nargs="+", default=list(METHODS), choices=METHODS)
     parser.add_argument("--model", required=True)
@@ -142,7 +144,7 @@ def main() -> None:
             training_rows=splits.training,
             runner=runner,
             method=method,
-            run_id=args.run_id,
+            run_id=f"{args.run_id}-{method}",  # the dashboard requires one method per run_id
             machine=args.machine,
             output_path=args.out,
             ctx_funcs=args.ctx_funcs,

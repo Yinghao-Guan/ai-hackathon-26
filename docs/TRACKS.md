@@ -52,6 +52,9 @@
 The cost curve doesn't need trained adapters: with the turn texts forced, costs don't depend on adapter quality,
 so random adapters are enough.
 
+**Run steps 3–5 and all later training and timed evals in WSL2.** It measured 5–40% faster than native Windows
+and has flash attention (see STATUS.md). Steps 1, 2 and 5 are done; their results are in STATUS.md.
+
 1. **Setup.** `git pull`, then `uv sync`; stop using any temporary venv made earlier. Check CUDA:
    ```bash
    uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"

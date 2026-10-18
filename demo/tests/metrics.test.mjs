@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   parseJSONL, isolateDataset, buildRuns, analyze, headline, pairTasks, passRate, sweepSeries,
   selectDefaultContextRuns, auditTask, ttftEligible, turnSegments, turnTotals, meanGpuSeconds,
-  tapeSpans, featuredTask, replayContextSizes, runFor, sweepSummary,
+  tapeSpans, tapeScale, featuredTask, replayContextSizes, runFor, sweepSummary, isSweepRun,
 } from "../js/metrics.js";
 
 // ---------- toy fixture helpers ----------
@@ -264,15 +264,34 @@ test("mock fixture parses cleanly, is all mock, and every task passes the accoun
 });
 
 // Session tape geometry, replay defaults and the sweep summary.
-test("tape spans place cache, prefill, written output and the H1 re-read end to end", () => {
+test("tape spans place cache, the H1 re-read, prefill and written output end to end", () => {
+  // CONTRACT.md section 3: canon_tokens are the previous turn's tokens, re-read at the start of this turn.
   const t = turn("a5-ctx3k", "A5-H1", 1, 1, { prefill: 98, reused: 3305, decode: 19, canon: 28 });
   const s = tapeSpans(t);
   assert.deepEqual(s.reused, [0, 3305]);
-  assert.deepEqual(s.recomputed, [3305, 3403]);
-  assert.deepEqual(s.written, [3403, 3422]);
-  assert.deepEqual(s.canon, [3394, 3422]);
-  assert.equal(s.end, 3422);
+  assert.deepEqual(s.canon, [3305, 3333]);
+  assert.deepEqual(s.recomputed, [3333, 3431]);
+  assert.deepEqual(s.written, [3431, 3450]);
+  assert.equal(s.end, 3450);
+  // Same session length as a method that re-reads everything: reused + canon + prefill is the input.
+  assert.equal(tapeSpans(turn("a2-ctx3k", "A2", 1, 1, { prefill: 3431, decode: 19 })).end, s.end);
   assert.equal(tapeSpans(turn("a2-ctx3k", "A2", 1, 0, { prefill: 3212, decode: 93 })).canon, null);
+});
+
+test("the tape scale covers the H1 re-read, so no tape runs past its column", () => {
+  // Eval task 466 on the 4090 (eval-1.5b-4090-202610180231): RoleKV takes four turns and its last ends at
+  // 2,290 tokens. A scale without canon_tokens was 2,164, which drew that tape at 106% of its column.
+  const a2 = [turn("a2", "A2", 466, 0, { prefill: 1759, decode: 152 }), turn("a2", "A2", 466, 1, { prefill: 1936, decode: 4 })];
+  const a5 = [
+    turn("a5", "A5-H1", 466, 0, { prefill: 1759, decode: 104 }),
+    turn("a5", "A5-H1", 466, 1, { reused: 1749, canon: 113, prefill: 108, decode: 79 }),
+    turn("a5", "A5-H1", 466, 2, { reused: 1959, canon: 89, prefill: 12, decode: 117 }),
+    turn("a5", "A5-H1", 466, 3, { reused: 2050, canon: 126, prefill: 110, decode: 4 }),
+  ];
+  const scale = tapeScale([...a2, ...a5]);
+  assert.equal(scale, 2290);
+  for (const t of [...a2, ...a5]) assert.ok(tapeSpans(t).end <= scale);
+  assert.equal(tapeScale([]), 1);
 });
 
 test("the featured replay task prefers both methods passing, then the most turns", () => {
@@ -305,4 +324,30 @@ test("sweep summary reports the share and absolute saving ranges, or null with o
   ];
   assert.deepEqual(sweepSummary(pts), { minShare: 0.6, maxShare: 0.7, firstSaved: 1000, lastSaved: 9000, firstK: 1, lastK: 8 });
   assert.equal(sweepSummary(pts.slice(0, 1)), null);
+});
+
+test("sweep runs never enter the main comparison, even when they are the only runs", () => {
+  const a = load([
+    ...session("sweep-A2-ctx2k", "A2", "ctx2000-r0", [2000, 2000], { ctx: 2000 }),
+    ...session("sweep-A5-H1-ctx2k", "A5-H1", "ctx2000-r0", [2000, 100], { ctx: 2000 }),
+  ]);
+  assert.ok(isSweepRun(a.runs.get("sweep-A2-ctx2k")));
+  assert.equal(a.selection.byMethod.A2.run, null);
+  assert.equal(a.headline.ok, false);  // no quality claim from forced replays
+  assert.equal(a.sweep.points.length, 1);  // ...but the sweep itself is plotted
+});
+
+test("with eval and sweep runs at one size, quality uses the eval runs and the sweep uses the sweep runs", () => {
+  const a = load([
+    ...session("eval-A2", "A2", 1, [2000, 2000], { ctx: 1800, passed: false }),
+    ...session("eval-A5-H1", "A5-H1", 1, [2000, 100], { ctx: 1800 }),
+    ...session("sweep-A2-ctx2k", "A2", "ctx2000-r0", [2000, 2000], { ctx: 2000 }),
+    ...session("sweep-A5-H1-ctx2k", "A5-H1", "ctx2000-r0", [2000, 100], { ctx: 2000 }),
+    ...session("sweep-A2-ctx8k", "A2", "ctx8000-r0", [8000, 8000], { ctx: 8000 }),
+    ...session("sweep-A5-H1-ctx8k", "A5-H1", "ctx8000-r0", [8000, 100], { ctx: 8000 }),
+  ]);
+  assert.equal(a.selection.ctxK, 2);
+  assert.equal(a.selection.byMethod.A2.run.run_id, "eval-A2");
+  assert.equal(a.a2Pass.passed, 0);
+  assert.deepEqual(a.sweep.points.map((p) => [p.k, p.a2Run.run_id]), [[2, "sweep-A2-ctx2k"], [8, "sweep-A2-ctx8k"]]);
 });

@@ -1,0 +1,1952 @@
+{
+  "run_id": [
+    "eval-1.5b-4070-202610180229-A0"
+  ],
+  "attempted": 100,
+  "passed": 54,
+  "reviewer_turns": 157,
+  "verdicts": {
+    "INVALID": 51,
+    "REVISE": 106
+  },
+  "invalid_reviewer_rate": 0.325,
+  "truncated_by_role": {
+    "reviewer": 89,
+    "coder": 3
+  },
+  "tasks": [
+    {
+      "task_id": 443,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1881,
+      "prefill_tokens_total": 2103,
+      "decode_tokens_total": 178,
+      "gpu_s": 6.16,
+      "peak_kv_mb": 62.3
+    },
+    {
+      "task_id": 208,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1533,
+      "prefill_tokens_total": 1735,
+      "decode_tokens_total": 217,
+      "gpu_s": 7.35,
+      "peak_kv_mb": 53.2
+    },
+    {
+      "task_id": 399,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1873,
+      "prefill_tokens_total": 2076,
+      "decode_tokens_total": 365,
+      "gpu_s": 13.79,
+      "peak_kv_mb": 66.6
+    },
+    {
+      "task_id": 466,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1633,
+      "prefill_tokens_total": 1837,
+      "decode_tokens_total": 481,
+      "gpu_s": 20.97,
+      "peak_kv_mb": 63.2
+    },
+    {
+      "task_id": 226,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1892,
+      "prefill_tokens_total": 2094,
+      "decode_tokens_total": 251,
+      "gpu_s": 11.13,
+      "peak_kv_mb": 64.0
+    },
+    {
+      "task_id": 31,
+      "passed": false,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "coder",
+        "coder",
+        "coder"
+      ],
+      "ctx_tokens": 2035,
+      "prefill_tokens_total": 2334,
+      "decode_tokens_total": 1590,
+      "gpu_s": 55.55,
+      "peak_kv_mb": 107.2
+    },
+    {
+      "task_id": 143,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2042,
+      "prefill_tokens_total": 2281,
+      "decode_tokens_total": 145,
+      "gpu_s": 4.74,
+      "peak_kv_mb": 66.3
+    },
+    {
+      "task_id": 272,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1561,
+      "prefill_tokens_total": 1765,
+      "decode_tokens_total": 338,
+      "gpu_s": 11.58,
+      "peak_kv_mb": 57.4
+    },
+    {
+      "task_id": 259,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1500,
+      "prefill_tokens_total": 1804,
+      "decode_tokens_total": 169,
+      "gpu_s": 5.92,
+      "peak_kv_mb": 53.9
+    },
+    {
+      "task_id": 218,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1717,
+      "prefill_tokens_total": 1934,
+      "decode_tokens_total": 174,
+      "gpu_s": 6.61,
+      "peak_kv_mb": 57.6
+    },
+    {
+      "task_id": 481,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1681,
+      "prefill_tokens_total": 1885,
+      "decode_tokens_total": 526,
+      "gpu_s": 16.16,
+      "peak_kv_mb": 65.8
+    },
+    {
+      "task_id": 412,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1620,
+      "prefill_tokens_total": 1874,
+      "decode_tokens_total": 163,
+      "gpu_s": 5.38,
+      "peak_kv_mb": 55.6
+    },
+    {
+      "task_id": 435,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1767,
+      "prefill_tokens_total": 1971,
+      "decode_tokens_total": 408,
+      "gpu_s": 12.11,
+      "peak_kv_mb": 64.9
+    },
+    {
+      "task_id": 166,
+      "passed": true,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1404,
+      "prefill_tokens_total": 1556,
+      "decode_tokens_total": 179,
+      "gpu_s": 5.09,
+      "peak_kv_mb": 47.4
+    },
+    {
+      "task_id": 255,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1877,
+      "prefill_tokens_total": 2161,
+      "decode_tokens_total": 154,
+      "gpu_s": 4.53,
+      "peak_kv_mb": 63.2
+    },
+    {
+      "task_id": 194,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1864,
+      "prefill_tokens_total": 2068,
+      "decode_tokens_total": 531,
+      "gpu_s": 15.69,
+      "peak_kv_mb": 70.9
+    },
+    {
+      "task_id": 309,
+      "passed": true,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1625,
+      "prefill_tokens_total": 1777,
+      "decode_tokens_total": 94,
+      "gpu_s": 3.04,
+      "peak_kv_mb": 51.1
+    },
+    {
+      "task_id": 467,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1797,
+      "prefill_tokens_total": 2012,
+      "decode_tokens_total": 147,
+      "gpu_s": 4.8,
+      "peak_kv_mb": 59.0
+    },
+    {
+      "task_id": 475,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1888,
+      "prefill_tokens_total": 2090,
+      "decode_tokens_total": 287,
+      "gpu_s": 9.03,
+      "peak_kv_mb": 64.9
+    },
+    {
+      "task_id": 122,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1997,
+      "prefill_tokens_total": 2257,
+      "decode_tokens_total": 182,
+      "gpu_s": 6.35,
+      "peak_kv_mb": 66.6
+    },
+    {
+      "task_id": 269,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1834,
+      "prefill_tokens_total": 2036,
+      "decode_tokens_total": 125,
+      "gpu_s": 4.21,
+      "peak_kv_mb": 59.0
+    },
+    {
+      "task_id": 82,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1658,
+      "prefill_tokens_total": 1860,
+      "decode_tokens_total": 171,
+      "gpu_s": 5.23,
+      "peak_kv_mb": 55.4
+    },
+    {
+      "task_id": 155,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1633,
+      "prefill_tokens_total": 1848,
+      "decode_tokens_total": 188,
+      "gpu_s": 6.12,
+      "peak_kv_mb": 55.6
+    },
+    {
+      "task_id": 489,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1767,
+      "prefill_tokens_total": 1969,
+      "decode_tokens_total": 314,
+      "gpu_s": 10.27,
+      "peak_kv_mb": 62.3
+    },
+    {
+      "task_id": 397,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 2034,
+      "prefill_tokens_total": 2236,
+      "decode_tokens_total": 222,
+      "gpu_s": 7.28,
+      "peak_kv_mb": 67.1
+    },
+    {
+      "task_id": 59,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1745,
+      "prefill_tokens_total": 1977,
+      "decode_tokens_total": 151,
+      "gpu_s": 4.68,
+      "peak_kv_mb": 58.1
+    },
+    {
+      "task_id": 327,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1710,
+      "prefill_tokens_total": 1912,
+      "decode_tokens_total": 269,
+      "gpu_s": 8.74,
+      "peak_kv_mb": 59.5
+    },
+    {
+      "task_id": 420,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2051,
+      "prefill_tokens_total": 2255,
+      "decode_tokens_total": 397,
+      "gpu_s": 12.68,
+      "peak_kv_mb": 72.4
+    },
+    {
+      "task_id": 139,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1849,
+      "prefill_tokens_total": 2086,
+      "decode_tokens_total": 154,
+      "gpu_s": 4.66,
+      "peak_kv_mb": 61.2
+    },
+    {
+      "task_id": 476,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1753,
+      "prefill_tokens_total": 2013,
+      "decode_tokens_total": 277,
+      "gpu_s": 8.95,
+      "peak_kv_mb": 62.5
+    },
+    {
+      "task_id": 283,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1952,
+      "prefill_tokens_total": 2165,
+      "decode_tokens_total": 173,
+      "gpu_s": 5.23,
+      "peak_kv_mb": 63.9
+    },
+    {
+      "task_id": 372,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 2016,
+      "prefill_tokens_total": 2348,
+      "decode_tokens_total": 214,
+      "gpu_s": 6.22,
+      "peak_kv_mb": 69.9
+    },
+    {
+      "task_id": 425,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1562,
+      "prefill_tokens_total": 1766,
+      "decode_tokens_total": 382,
+      "gpu_s": 9.81,
+      "peak_kv_mb": 58.6
+    },
+    {
+      "task_id": 319,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1699,
+      "prefill_tokens_total": 1902,
+      "decode_tokens_total": 349,
+      "gpu_s": 10.32,
+      "peak_kv_mb": 61.4
+    },
+    {
+      "task_id": 472,
+      "passed": true,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1365,
+      "prefill_tokens_total": 1517,
+      "decode_tokens_total": 114,
+      "gpu_s": 3.86,
+      "peak_kv_mb": 44.5
+    },
+    {
+      "task_id": 86,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1702,
+      "prefill_tokens_total": 1922,
+      "decode_tokens_total": 155,
+      "gpu_s": 4.97,
+      "peak_kv_mb": 56.7
+    },
+    {
+      "task_id": 169,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2154,
+      "prefill_tokens_total": 2358,
+      "decode_tokens_total": 494,
+      "gpu_s": 15.92,
+      "peak_kv_mb": 77.8
+    },
+    {
+      "task_id": 61,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2013,
+      "prefill_tokens_total": 2253,
+      "decode_tokens_total": 197,
+      "gpu_s": 5.9,
+      "peak_kv_mb": 66.9
+    },
+    {
+      "task_id": 384,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1913,
+      "prefill_tokens_total": 2115,
+      "decode_tokens_total": 231,
+      "gpu_s": 6.99,
+      "peak_kv_mb": 64.0
+    },
+    {
+      "task_id": 48,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1766,
+      "prefill_tokens_total": 1986,
+      "decode_tokens_total": 150,
+      "gpu_s": 4.56,
+      "peak_kv_mb": 58.4
+    },
+    {
+      "task_id": 446,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2044,
+      "prefill_tokens_total": 2324,
+      "decode_tokens_total": 302,
+      "gpu_s": 9.19,
+      "peak_kv_mb": 71.7
+    },
+    {
+      "task_id": 361,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1615,
+      "prefill_tokens_total": 1817,
+      "decode_tokens_total": 173,
+      "gpu_s": 5.26,
+      "peak_kv_mb": 54.3
+    },
+    {
+      "task_id": 180,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1378,
+      "prefill_tokens_total": 1634,
+      "decode_tokens_total": 267,
+      "gpu_s": 7.8,
+      "peak_kv_mb": 51.9
+    },
+    {
+      "task_id": 252,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2146,
+      "prefill_tokens_total": 2350,
+      "decode_tokens_total": 381,
+      "gpu_s": 11.36,
+      "peak_kv_mb": 74.5
+    },
+    {
+      "task_id": 297,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1798,
+      "prefill_tokens_total": 2000,
+      "decode_tokens_total": 387,
+      "gpu_s": 11.92,
+      "peak_kv_mb": 65.1
+    },
+    {
+      "task_id": 62,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1913,
+      "prefill_tokens_total": 2115,
+      "decode_tokens_total": 169,
+      "gpu_s": 5.95,
+      "peak_kv_mb": 62.3
+    },
+    {
+      "task_id": 192,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1785,
+      "prefill_tokens_total": 1988,
+      "decode_tokens_total": 327,
+      "gpu_s": 10.41,
+      "peak_kv_mb": 63.2
+    },
+    {
+      "task_id": 233,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1743,
+      "prefill_tokens_total": 1945,
+      "decode_tokens_total": 226,
+      "gpu_s": 6.88,
+      "peak_kv_mb": 59.2
+    },
+    {
+      "task_id": 172,
+      "passed": true,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1943,
+      "prefill_tokens_total": 2095,
+      "decode_tokens_total": 147,
+      "gpu_s": 4.25,
+      "peak_kv_mb": 61.2
+    },
+    {
+      "task_id": 323,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1942,
+      "prefill_tokens_total": 2230,
+      "decode_tokens_total": 265,
+      "gpu_s": 6.96,
+      "peak_kv_mb": 68.2
+    },
+    {
+      "task_id": 338,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2219,
+      "prefill_tokens_total": 2484,
+      "decode_tokens_total": 373,
+      "gpu_s": 10.23,
+      "peak_kv_mb": 78.0
+    },
+    {
+      "task_id": 115,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1828,
+      "prefill_tokens_total": 2032,
+      "decode_tokens_total": 337,
+      "gpu_s": 9.95,
+      "peak_kv_mb": 64.6
+    },
+    {
+      "task_id": 293,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1620,
+      "prefill_tokens_total": 1906,
+      "decode_tokens_total": 120,
+      "gpu_s": 4.27,
+      "peak_kv_mb": 55.3
+    },
+    {
+      "task_id": 496,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 2710,
+      "prefill_tokens_total": 2912,
+      "decode_tokens_total": 227,
+      "gpu_s": 7.71,
+      "peak_kv_mb": 85.7
+    },
+    {
+      "task_id": 237,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1816,
+      "prefill_tokens_total": 2103,
+      "decode_tokens_total": 182,
+      "gpu_s": 5.45,
+      "peak_kv_mb": 62.4
+    },
+    {
+      "task_id": 454,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1922,
+      "prefill_tokens_total": 2146,
+      "decode_tokens_total": 182,
+      "gpu_s": 5.12,
+      "peak_kv_mb": 63.6
+    },
+    {
+      "task_id": 277,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2051,
+      "prefill_tokens_total": 2369,
+      "decode_tokens_total": 159,
+      "gpu_s": 4.17,
+      "peak_kv_mb": 69.1
+    },
+    {
+      "task_id": 144,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2360,
+      "prefill_tokens_total": 2564,
+      "decode_tokens_total": 418,
+      "gpu_s": 13.26,
+      "peak_kv_mb": 81.4
+    },
+    {
+      "task_id": 42,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1672,
+      "prefill_tokens_total": 1892,
+      "decode_tokens_total": 186,
+      "gpu_s": 5.73,
+      "peak_kv_mb": 56.8
+    },
+    {
+      "task_id": 423,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2023,
+      "prefill_tokens_total": 2374,
+      "decode_tokens_total": 365,
+      "gpu_s": 10.91,
+      "peak_kv_mb": 74.8
+    },
+    {
+      "task_id": 291,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1665,
+      "prefill_tokens_total": 1869,
+      "decode_tokens_total": 562,
+      "gpu_s": 15.95,
+      "peak_kv_mb": 66.3
+    },
+    {
+      "task_id": 18,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1841,
+      "prefill_tokens_total": 2043,
+      "decode_tokens_total": 259,
+      "gpu_s": 6.73,
+      "peak_kv_mb": 62.8
+    },
+    {
+      "task_id": 58,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1719,
+      "prefill_tokens_total": 1921,
+      "decode_tokens_total": 233,
+      "gpu_s": 6.03,
+      "peak_kv_mb": 58.8
+    },
+    {
+      "task_id": 379,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1607,
+      "prefill_tokens_total": 1809,
+      "decode_tokens_total": 243,
+      "gpu_s": 6.55,
+      "peak_kv_mb": 56.0
+    },
+    {
+      "task_id": 441,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1757,
+      "prefill_tokens_total": 1959,
+      "decode_tokens_total": 286,
+      "gpu_s": 7.93,
+      "peak_kv_mb": 61.2
+    },
+    {
+      "task_id": 215,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1500,
+      "prefill_tokens_total": 1704,
+      "decode_tokens_total": 430,
+      "gpu_s": 11.82,
+      "peak_kv_mb": 58.2
+    },
+    {
+      "task_id": 374,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1878,
+      "prefill_tokens_total": 2117,
+      "decode_tokens_total": 209,
+      "gpu_s": 5.89,
+      "peak_kv_mb": 63.5
+    },
+    {
+      "task_id": 433,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1783,
+      "prefill_tokens_total": 2033,
+      "decode_tokens_total": 182,
+      "gpu_s": 5.56,
+      "peak_kv_mb": 60.5
+    },
+    {
+      "task_id": 499,
+      "passed": true,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1428,
+      "prefill_tokens_total": 1580,
+      "decode_tokens_total": 151,
+      "gpu_s": 4.44,
+      "peak_kv_mb": 47.3
+    },
+    {
+      "task_id": 353,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1988,
+      "prefill_tokens_total": 2190,
+      "decode_tokens_total": 297,
+      "gpu_s": 8.77,
+      "peak_kv_mb": 67.9
+    },
+    {
+      "task_id": 331,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1739,
+      "prefill_tokens_total": 1953,
+      "decode_tokens_total": 177,
+      "gpu_s": 5.36,
+      "peak_kv_mb": 58.2
+    },
+    {
+      "task_id": 11,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1618,
+      "prefill_tokens_total": 1875,
+      "decode_tokens_total": 302,
+      "gpu_s": 8.44,
+      "peak_kv_mb": 59.4
+    },
+    {
+      "task_id": 324,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1869,
+      "prefill_tokens_total": 2112,
+      "decode_tokens_total": 172,
+      "gpu_s": 4.82,
+      "peak_kv_mb": 62.4
+    },
+    {
+      "task_id": 263,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2024,
+      "prefill_tokens_total": 2227,
+      "decode_tokens_total": 316,
+      "gpu_s": 8.53,
+      "peak_kv_mb": 69.4
+    },
+    {
+      "task_id": 434,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1899,
+      "prefill_tokens_total": 2119,
+      "decode_tokens_total": 164,
+      "gpu_s": 4.48,
+      "peak_kv_mb": 62.4
+    },
+    {
+      "task_id": 181,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1797,
+      "prefill_tokens_total": 2001,
+      "decode_tokens_total": 500,
+      "gpu_s": 13.14,
+      "peak_kv_mb": 68.2
+    },
+    {
+      "task_id": 135,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1759,
+      "prefill_tokens_total": 1977,
+      "decode_tokens_total": 151,
+      "gpu_s": 3.95,
+      "peak_kv_mb": 58.1
+    },
+    {
+      "task_id": 500,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1857,
+      "prefill_tokens_total": 2106,
+      "decode_tokens_total": 145,
+      "gpu_s": 3.76,
+      "peak_kv_mb": 61.5
+    },
+    {
+      "task_id": 177,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1720,
+      "prefill_tokens_total": 1938,
+      "decode_tokens_total": 193,
+      "gpu_s": 5.05,
+      "peak_kv_mb": 58.2
+    },
+    {
+      "task_id": 371,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1916,
+      "prefill_tokens_total": 2120,
+      "decode_tokens_total": 517,
+      "gpu_s": 13.1,
+      "peak_kv_mb": 72.0
+    },
+    {
+      "task_id": 43,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1676,
+      "prefill_tokens_total": 1899,
+      "decode_tokens_total": 183,
+      "gpu_s": 5.19,
+      "peak_kv_mb": 56.9
+    },
+    {
+      "task_id": 108,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1864,
+      "prefill_tokens_total": 2289,
+      "decode_tokens_total": 323,
+      "gpu_s": 8.7,
+      "peak_kv_mb": 71.3
+    },
+    {
+      "task_id": 301,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1956,
+      "prefill_tokens_total": 2566,
+      "decode_tokens_total": 169,
+      "gpu_s": 4.81,
+      "peak_kv_mb": 74.7
+    },
+    {
+      "task_id": 124,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1810,
+      "prefill_tokens_total": 2045,
+      "decode_tokens_total": 155,
+      "gpu_s": 4.29,
+      "peak_kv_mb": 60.1
+    },
+    {
+      "task_id": 133,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1470,
+      "prefill_tokens_total": 1673,
+      "decode_tokens_total": 308,
+      "gpu_s": 8.16,
+      "peak_kv_mb": 54.0
+    },
+    {
+      "task_id": 422,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1578,
+      "prefill_tokens_total": 1781,
+      "decode_tokens_total": 400,
+      "gpu_s": 10.8,
+      "peak_kv_mb": 59.5
+    },
+    {
+      "task_id": 83,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1841,
+      "prefill_tokens_total": 2052,
+      "decode_tokens_total": 146,
+      "gpu_s": 4.12,
+      "peak_kv_mb": 60.0
+    },
+    {
+      "task_id": 478,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1280,
+      "prefill_tokens_total": 1482,
+      "decode_tokens_total": 275,
+      "gpu_s": 8.09,
+      "peak_kv_mb": 47.9
+    },
+    {
+      "task_id": 289,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1794,
+      "prefill_tokens_total": 2008,
+      "decode_tokens_total": 202,
+      "gpu_s": 5.81,
+      "peak_kv_mb": 60.4
+    },
+    {
+      "task_id": 240,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2067,
+      "prefill_tokens_total": 2340,
+      "decode_tokens_total": 154,
+      "gpu_s": 4.3,
+      "peak_kv_mb": 68.1
+    },
+    {
+      "task_id": 57,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 2075,
+      "prefill_tokens_total": 2279,
+      "decode_tokens_total": 431,
+      "gpu_s": 11.69,
+      "peak_kv_mb": 74.0
+    },
+    {
+      "task_id": 52,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1731,
+      "prefill_tokens_total": 1933,
+      "decode_tokens_total": 184,
+      "gpu_s": 4.96,
+      "peak_kv_mb": 57.8
+    },
+    {
+      "task_id": 174,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1896,
+      "prefill_tokens_total": 2099,
+      "decode_tokens_total": 403,
+      "gpu_s": 10.6,
+      "peak_kv_mb": 68.3
+    },
+    {
+      "task_id": 271,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1514,
+      "prefill_tokens_total": 1718,
+      "decode_tokens_total": 397,
+      "gpu_s": 10.13,
+      "peak_kv_mb": 57.7
+    },
+    {
+      "task_id": 261,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1974,
+      "prefill_tokens_total": 2176,
+      "decode_tokens_total": 187,
+      "gpu_s": 4.86,
+      "peak_kv_mb": 64.5
+    },
+    {
+      "task_id": 66,
+      "passed": true,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [],
+      "ctx_tokens": 1906,
+      "prefill_tokens_total": 2058,
+      "decode_tokens_total": 107,
+      "gpu_s": 2.82,
+      "peak_kv_mb": 59.1
+    },
+    {
+      "task_id": 165,
+      "passed": false,
+      "turns": 4,
+      "verdicts": [
+        "REVISE",
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer",
+        "reviewer"
+      ],
+      "ctx_tokens": 1633,
+      "prefill_tokens_total": 1889,
+      "decode_tokens_total": 371,
+      "gpu_s": 9.43,
+      "peak_kv_mb": 61.7
+    },
+    {
+      "task_id": 458,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [],
+      "ctx_tokens": 1897,
+      "prefill_tokens_total": 2099,
+      "decode_tokens_total": 124,
+      "gpu_s": 3.43,
+      "peak_kv_mb": 60.6
+    },
+    {
+      "task_id": 160,
+      "passed": false,
+      "turns": 2,
+      "verdicts": [
+        "INVALID"
+      ],
+      "ended_by": "APPROVE/INVALID",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 2127,
+      "prefill_tokens_total": 2358,
+      "decode_tokens_total": 169,
+      "gpu_s": 4.61,
+      "peak_kv_mb": 69.0
+    },
+    {
+      "task_id": 479,
+      "passed": true,
+      "turns": 5,
+      "verdicts": [
+        "REVISE",
+        "REVISE"
+      ],
+      "ended_by": "2-REVISE cap",
+      "truncated": [
+        "reviewer"
+      ],
+      "ctx_tokens": 1699,
+      "prefill_tokens_total": 1902,
+      "decode_tokens_total": 341,
+      "gpu_s": 9.03,
+      "peak_kv_mb": 61.2
+    }
+  ],
+  "median_ctx_tokens": 1804.0,
+  "peak_allocated_mb": 3231.5,
+  "peak_reserved_mb": 3882.0,
+  "device": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "exit_code": 0,
+  "error": null,
+  "timing": {
+    "wall_s_end_to_end": 843.29,
+    "task_completed_s": [
+      28.72,
+      36.22,
+      49.74,
+      71.26,
+      82.27,
+      137.82,
+      142.82,
+      154.34,
+      160.34,
+      166.85,
+      183.36,
+      188.36,
+      200.96,
+      205.97,
+      210.47,
+      226.48,
+      229.49,
+      234.49,
+      243.5,
+      250.0,
+      254.01,
+      259.51,
+      265.52,
+      276.03,
+      283.04,
+      288.04,
+      296.55,
+      309.56,
+      314.07,
+      323.07,
+      328.58,
+      334.58,
+      344.59,
+      355.1,
+      358.6,
+      363.61,
+      379.62,
+      385.63,
+      392.63,
+      397.14,
+      406.65,
+      412.15,
+      419.66,
+      431.17,
+      443.18,
+      449.19,
+      459.7,
+      466.7,
+      470.7,
+      477.71,
+      488.22,
+      498.22,
+      502.23,
+      510.23,
+      515.74,
+      520.74,
+      525.25,
+      538.26,
+      544.26,
+      555.27,
+      571.28,
+      577.79,
+      583.79,
+      590.3,
+      598.3,
+      610.31,
+      616.32,
+      621.82,
+      626.32,
+      635.33,
+      640.83,
+      648.84,
+      653.84,
+      662.35,
+      666.86,
+      680.37,
+      684.37,
+      687.87,
+      692.88,
+      706.39,
+      711.39,
+      720.4,
+      724.9,
+      729.41,
+      737.42,
+      748.42,
+      752.43,
+      760.93,
+      766.44,
+      770.94,
+      782.95,
+      787.95,
+      798.46,
+      808.47,
+      813.47,
+      816.48,
+      825.98,
+      829.49,
+      833.99,
+      843.24
+    ],
+    "startup_plus_task1_s": 28.72,
+    "later_task_s": [
+      7.5,
+      13.52,
+      21.52,
+      11.01,
+      55.55,
+      5.0,
+      11.52,
+      6.0,
+      6.51,
+      16.51,
+      5.0,
+      12.6,
+      5.01,
+      4.5,
+      16.01,
+      3.01,
+      5.0,
+      9.01,
+      6.5,
+      4.01,
+      5.5,
+      6.01,
+      10.51,
+      7.01,
+      5.0,
+      8.51,
+      13.01,
+      4.51,
+      9.0,
+      5.51,
+      6.0,
+      10.01,
+      10.51,
+      3.5,
+      5.01,
+      16.01,
+      6.01,
+      7.0,
+      4.51,
+      9.51,
+      5.5,
+      7.51,
+      11.51,
+      12.01,
+      6.01,
+      10.51,
+      7.0,
+      4.0,
+      7.01,
+      10.51,
+      10.0,
+      4.01,
+      8.0,
+      5.51,
+      5.0,
+      4.51,
+      13.01,
+      6.0,
+      11.01,
+      16.01,
+      6.51,
+      6.0,
+      6.51,
+      8.0,
+      12.01,
+      6.01,
+      5.5,
+      4.5,
+      9.01,
+      5.5,
+      8.01,
+      5.0,
+      8.51,
+      4.51,
+      13.51,
+      4.0,
+      3.5,
+      5.01,
+      13.51,
+      5.0,
+      9.01,
+      4.5,
+      4.51,
+      8.01,
+      11.0,
+      4.01,
+      8.5,
+      5.51,
+      4.5,
+      12.01,
+      5.0,
+      10.51,
+      10.01,
+      5.0,
+      3.01,
+      9.5,
+      3.51,
+      4.5,
+      9.25
+    ],
+    "conservative_100_task_estimate_s": 5528.2
+  },
+  "problems": [],
+  "notes": []
+}

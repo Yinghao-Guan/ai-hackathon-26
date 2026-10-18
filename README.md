@@ -40,25 +40,36 @@ handoff policies:
 | **A5-H1** | One aLoRA per role, canonicalize at handoff | shared, exact (our method) |
 | A5-H2 | One aLoRA per role, keep the previous role's KV | shared, approximate |
 
-Setup (from [docs/PLAN.md](docs/PLAN.md)): Qwen2.5-Coder-1.5B-Instruct; MBPP tasks with a ≈3k-token
-`utils.py` "repository file" as shared context; Coder writes code → the visible test runs → Reviewer answers
-`APPROVE` or `REVISE` (at most 2 rounds) → final code scored on all asserts. Which methods were actually
-evaluated will be listed under Results.
+Setup (from [docs/PLAN.md](docs/PLAN.md)):
+- **Model:** Qwen2.5-Coder-1.5B-Instruct.
+- **Tasks:** MBPP, each with a `utils.py` "repository file" of other MBPP solutions as shared context
+  (≈1.5k–1.9k tokens, the same as in the training data).
+- **Session:** the Coder writes code → the task's tests run → the Reviewer answers `APPROVE` or `REVISE` (at
+  most 2 rounds) → the final code is scored on all asserts.
 
-## Demo dashboard
+The methods actually evaluated are listed under Results.
+
+## Demo
 
 ```bash
 cd demo
 python -m http.server 8000     # open http://localhost:8000
 ```
 
-- **Session replay:** A2 vs A5-H1 on the same task, turn by turn: tokens recomputed, reused from cache, and
-  canonicalized at handoff.
-- **Cost vs quality:** prefill tokens per task vs pass rate for every method in the log.
-- **Context sweep:** tokens saved per task as the shared context grows (≈1k / 3k / 4k / 8k).
+- **Homepage** (`index.html`): the pitch on one screen. The KV cache is drawn in 3D (Three.js, vendored in
+  `demo/vendor/three`): two blocks of cells pointing at the viewer, a 14 × 14 map of the token positions in
+  front and 28 layers deep, replaying one measured 4-turn session for per-role LoRAs and RoleKV side by
+  side, with the same session as 2D tapes and running token counts in the HUD. Its numbers are copied from `bench/results/cost_sweep_4090.md` into `demo/js/home.js` next
+  to their source; it shows no timing or quality number until those runs land.
+- **Dashboard** (`dashboard.html`), which reads event logs:
+  - **Session replay:** A2 vs A5-H1 on the same task, turn by turn: tokens recomputed, reused from cache, and
+    canonicalized at handoff.
+  - **Cost vs quality:** prefill tokens per task vs pass rate for every method in the log.
+  - **Context sweep:** tokens saved per task as the shared context grows (≈1k / 2k / 4k / 8k).
+- **Presentation stage** (`dashboard.html?present`): one full-screen beat per part of the pitch, for the video.
 
-With no real log present, it shows a clearly labelled mock fixture. To load real results, put the eval log at
-`demo/data/events.jsonl`, or use **Load event log**, or drag a `.jsonl` file onto the page. Details,
+With no real log present, the dashboard shows a clearly labelled mock fixture. To load real results, put the
+eval log at `demo/data/events.jsonl`, or use **Load event log**, or drag a `.jsonl` file onto the page. Details,
 metric definitions and the event-log assumptions are in [demo/README.md](demo/README.md).
 
 ## Metrics
@@ -76,27 +87,95 @@ GPU-seconds are compared only within runs on the same RTX 4090.
 
 ## Results
 
-> _Pending real runs. Nothing below may be filled from mock data._
+### Cost (measured)
 
-| | A2 | A5-H1 |
-|---|---|---|
-| Pass rate (n tasks) | `TBD` | `TBD` |
-| Mean prefill tokens / task | `TBD` | `TBD` |
-| Prefill ratio | | `TBD` × (`TBD`% fewer, `TBD` paired tasks) |
+`bench/cost_sweep.py` replays one fixed 4-turn session (buggy code → `REVISE` → fixed code → `APPROVE`) with
+each method at four shared-context sizes.
+- **Token counts** depend only on the tokens, so they are exact on any machine. They came out identical on the
+  Mac and the 4090.
+- **Timings** are from the RTX 4090 laptop: WSL2, 1.5B in bf16, adapters in bf16, 5 repeats.
 
-Source runs: `TBD` (run_id, machine, log path, commit).
+| Shared context | Tokens computed per session: A2 → A5-H1 | Switch TTFT: A2 → A5-H1 | GPU s per session: A2 → A5-H1 |
+|---|---|---|---|
+| 1.1k | 5,599 → 1,576 (3.6× fewer) | 94 → 50 ms (1.9×) | 6.56 → 6.84 s |
+| 2.1k | 9,595 → 2,575 (3.7× fewer) | 155 → 48 ms (3.2×) | 6.82 → 6.89 s |
+| 4.1k | 17,575 → 4,570 (3.8× fewer) | 279 → 47 ms (5.9×) | 7.19 → 7.01 s |
+| 8.1k | 33,651 → 8,589 (3.9× fewer) | 583 → 50 ms (11.7×) | 8.40 → 7.32 s (13% less) |
+
+- **Why the saving approaches the number of turns:** A2 re-reads the whole context on every turn, while A5-H1
+  reads it once.
+- **The H1 handoff cost:** A5-H1's count includes 221 tokens of H1 handoff recompute per session.
+- **Switch TTFT:** A5-H1's stays at ~50 ms. A2's grows linearly, because it re-reads the context on every
+  switch.
+- **Whole-session time is mostly decoding** (~230 tokens per session), so it moves much less:
+  - 4% slower than A2 at 1k and 13% faster at 8k.
+  - A5-H1 decodes 8% slower per token (34.3 vs 31.7 ms). That is the Python overhead of PEFT's aLoRA code
+    path across 196 adapted layers, not extra compute, and it counts against RoleKV.
+- **What these numbers measure:** cost only. The turn texts are forced, so they say nothing about quality.
+- **Sources:** `bench/results/cost_sweep_4090.{jsonl,md}` and `bench/results/cost_sweep_mac.*`, on the
+  `peter` branch.
+
+### Quality and cost on 100 MBPP eval tasks (measured)
+
+Setup: one greedy run per method, all on the RTX 4090 (WSL2, 1.5B in bf16, adapters in bf16), ~1.8k tokens of
+shared context, the same 100 tasks for every method.
+
+| Method | pass@1 | Mean tokens computed / task | Median switch TTFT | Mean GPU s / task |
+|---|---|---|---|---|
+| A0 base, no adapters | 51 | 2,038 | 20 ms | 4.29 |
+| A1 one LoRA for both roles | 61 | 2,060 | 35 ms | 5.29 |
+| **A2 one LoRA per role, full re-prefill** | **59** | **7,013** | **139 ms** | **5.56** |
+| A3 one LoRA per role, reuse mismatched KV | 62 | 2,061 | 41 ms | 5.54 |
+| **A5-H1 RoleKV (aLoRA, exact handoff)** | **61** | **2,197** | **45 ms** | **4.29** |
+| A5-H2 RoleKV, keep the previous role's KV | 60 | 2,059 | 44 ms | 4.40 |
+
+**A5-H1 vs A2:**
+- **Compute:** 3.2× fewer tokens computed per task (68.7% fewer, including 138 tokens of H1 handoff
+  recompute), on the same 100 tasks.
+- **Latency:** 3.1× faster switches (median TTFT).
+- **GPU time:** 23% less per task.
+- **Quality:** the same. Paired by task, both methods pass 51, only A2 passes 8, only A5-H1 passes 10.
+
+How to read the other rows:
+- **All four adapter methods are within noise of each other** (59–62). One binomial standard error is about
+  5 points at n = 100.
+- **On this benchmark, mismatched KV reuse (A3) did not hurt quality, and one shared LoRA (A1) matched
+  per-role adapters.**
+  - RoleKV's advantage over them is not quality here. It is that the sharing is *exact* by construction, so
+    there is nothing to validate per task or model.
+  - And each role keeps its own adapter, so roles can be trained and updated independently.
+- **A known weakness of aLoRA here: second reviews.**
+  - The aLoRA Reviewers approved 41/45 (H1) and 39/45 (H2) of their second reviews, and 35 and 34 of those
+    tasks' final code failed.
+  - The LoRA Reviewers (A1, A2, A3) mostly revised and never approved failing code in that round.
+  - The training data has no second reviews.
+- **A0 on the RTX 4070 (WSL2) passes 54, vs 51 on the 4090.** Greedy decoding in bf16 on another GPU shifts
+  results by a few points, which is why every comparison here is on one machine.
+
+**Sources (branch `peter`):**
+- `eval/results/eval-1.5b-4090-202610180231.jsonl` and its `.summary.md` (eval commit `00dc40e`, adapters
+  from `train/results/1.5b/`);
+- `eval/results/eval-1.5b-4070-202610180229.*` (A0 on the 4070, run by Member A).
 
 ## Reproducibility
 
 - Event-log schema: [docs/CONTRACT.md](docs/CONTRACT.md) §3. Plan and scope: [docs/PLAN.md](docs/PLAN.md).
 - Eval set: 100 MBPP test-split problems, sampled with seed 0; training uses the train, validation and prompt splits.
-- Hardware: training and timed evals on an RTX 4090 laptop GPU (16 GB); untimed evals on an RTX 4070 laptop GPU.
-- Runs, configs and commits: `TBD` when the eval logs land.
+- Hardware: training and every reported eval on an RTX 4090 laptop GPU (16 GB) under WSL2; an extra A0 run on an RTX 4070 laptop GPU (WSL2).
+- Runs, configs and commits:
+  - eval: `eval/results/` on `peter` (eval commit `00dc40e`);
+  - training records: `train/results/1.5b/*/train_run.json`;
+  - cost sweep: `bench/results/`.
+- GPU correctness gate: `RT_DEVICE=cuda uv run pytest -q` passed 60/60 in fp32 on the 4090 before the evals.
 
 ## Limitations
 
 - One small model (1.5B) and function-level tasks (MBPP), not repository-level agents.
 - Two roles only; a single run per method (greedy decoding), so pass-rate differences of a few points may be noise.
+- On MBPP with 1.5B, naive KV reuse (A3) and one shared LoRA (A1) were as good as per-role adapters, so the
+  quality case for exact sharing is not shown here.
+- aLoRA Reviewers mostly approve on a second review, including failing code, because the SFT data has no
+  multi-round reviews. Fix: generate multi-round trajectories.
 - Laptop GPUs; timings are noisy and only compared within one machine.
 - aLoRA reportedly needs a higher rank than LoRA for the same quality; the prior work targets short
   "intrinsic" outputs, while our roles generate whole functions.

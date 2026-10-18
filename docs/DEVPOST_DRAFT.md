@@ -41,9 +41,9 @@ Every headline number is computed in the browser from the loaded event logs; not
   (`peft==0.21.2`, aLoRA via `alora_invocation_tokens`) on PyTorch + transformers.
 - **Runtime:** a shared-session engine that keeps one KV cache, switches adapters per role, crops and
   recomputes the cache at H1 handoffs, and logs prefill, reuse and canonicalization tokens per turn.
-  `[[confirm against rolekv/ once merged]]`
 - **Data:** MBPP. Teacher dialogues (Claude) for training, with every tool output coming from actually running
-  the tests, never invented. `[[confirm final row counts from data/README.md]]`
+  the tests, never invented. 280 verified trajectories: 338 Coder rows and 280 Reviewer rows (222 APPROVE,
+  58 REVISE, with the REVISE rows oversampled ×3 in training).
 - **Correctness tests:** cache equivalence against a full aLoRA forward pass, canonicalization equal to a fresh
   base prefill, adapter-on during decode, and a hand-computed cost-accounting check.
 - **Dashboard:** a static HTML/CSS/JS page with hand-drawn SVG charts and no build step or dependencies,
@@ -65,15 +65,36 @@ Every headline number is computed in the browser from the loaded event logs; not
 - **Comparable timing.** We trained and evaluated across laptops with different GPUs; timing is compared only
   on one RTX 4090, and token counts (deterministic) are the primary metric.
 
-`[[add any challenge that actually happened during training/eval]]`
+- **Library overhead that looked like a result.** On our first 4090 run, aLoRA decoded 15% slower per token
+  than plain LoRA, so short sessions took longer with RoleKV. The overhead came from PEFT's aLoRA path, not
+  from aLoRA itself:
+  - a boolean-mask row selection that waits for the GPU in every layer;
+  - per-call hook registration that walks the whole model.
+
+  We replaced them with an equivalent slice and persistent hooks, both checked against PEFT's own output.
+  That brought decoding to within 1–4% of plain LoRA. Moving every adapter to bf16 (next point) then made
+  plain LoRA cheaper, so the Python overhead left in PEFT's aLoRA path shows as 8% slower decoding. That
+  overhead counts against RoleKV, not for it.
+- **A default that flattered us.** PEFT upcasts adapter weights to fp32. Plain LoRA applies its adapter to
+  every token, so the upcast slowed it far more than aLoRA, which is active on the role header only: +39% vs
+  +7% on a 4k-token prefill. We run every method's adapters in bf16. That made our latency ratios smaller,
+  and fair.
+- **Training data that didn't match eval.** The generated SFT data used a different system prompt than the
+  runtime. We re-exported it without new API calls, and a test now guards the data contract.
 
 ## Accomplishments that we're proud of
 
-- `[[X.XX]]`× fewer prefill tokens per task for A5-H1 vs A2 (`[[YY.Y]]`% fewer, `[[N]]` paired MBPP tasks,
-  ≈3k-token shared context). Source: `[[run_ids]]`.
-- Pass rate `[[A5-H1 %]]` vs `[[A2 %]]` for per-role LoRAs. `[[State the difference plainly; do not claim
-  parity unless the numbers show it.]]`
-- `[[Correctness tests: N/4 passing, on what hardware/precision]]`
+- In a fixed 4-turn session, A5-H1 computes 3.6× fewer tokens than A2 at ~1k tokens of shared context and
+  3.9× fewer at ~8k. On the RTX 4090, its first token after a role switch arrives in ~50 ms at every size,
+  while A2's grows from 94 to 583 ms: 1.9× to 11.7× faster. Source: `bench/results/cost_sweep_4090.md`.
+- In the eval, A5-H1 computes 3.2× fewer prefill tokens per task than A2: 2,197 vs 7,013, 68.7% fewer, on the
+  same 100 MBPP tasks with ≈1.8k tokens of shared context. Its role switches are 3.1× faster (median TTFT 45 vs
+  139 ms). Source: `eval/results/eval-1.5b-4090-202610180231.jsonl`.
+- Pass rate 61/100 for A5-H1 vs 59/100 for per-role LoRAs. Paired by task, only A2 passes 8 and only A5-H1
+  passes 10. That is no measurable difference.
+- Every runtime correctness test passes on the Mac CPU in fp32: cache equivalence, handoff canonicalization,
+  adapter on during decode, and cost accounting checked against an independent embedding-layer counter.
+  On the RTX 4090 the same 60 tests pass in fp32 on CUDA.
 - A dashboard that makes a KV-cache idea understandable in seconds, and refuses to show unverified numbers as
   results.
 
@@ -82,9 +103,19 @@ Every headline number is computed in the browser from the loaded event logs; not
 - Cache sharing is only as good as its correctness: a single silently-disabled adapter would have produced
   great-looking savings and wrong outputs. Equivalence tests had to come before any experiment.
 - The savings come from the shared context, so they depend on how long it is relative to what each role
-  writes. `[[Summarize the context-sweep result once measured.]]`
-- `[[Measured finding about H1 vs H2 quality, if run.]]`
-- `[[Measured finding about aLoRA vs LoRA quality at our ranks.]]`
+  writes. In a fixed 4-turn session, the token saving is 3.6× at ~1k
+  tokens of shared context and 3.9× at ~8k. It approaches the number of turns, because per-role LoRAs re-read
+  the context once per turn. Switch latency diverges much faster. A2's
+  grows linearly with the context (94 → 583 ms from 1k to 8k tokens), while A5-H1's stays at ~50 ms. Whole
+  sessions are dominated by decoding, so they gain less: from 4% slower at 1k to 13% faster at 8k.
+- H1 vs H2: 61 vs 60 passes, a difference within noise. The H1 handoff costs 138 extra tokens per task.
+- aLoRA vs LoRA at our ranks (aLoRA r=32, LoRA r=16): pass rates are within noise (60–61 vs 59–62).
+- **Mismatched KV reuse (A3) and one shared LoRA (A1) also kept quality on MBPP.**
+  - So the benefit of exact sharing over naive reuse doesn't show on this benchmark.
+  - Exactness and per-role modularity are the argument, not a measured quality gap.
+- aLoRA Reviewers approve most second reviews, including failing code (35 of 100 tasks for H1). The LoRA
+  Reviewers don't. Our SFT data never contains a second review, so multi-round trajectories are the obvious
+  next fix.
 
 Hypotheses we did not test are under What's next.
 
@@ -106,5 +137,5 @@ Future work, not done in this hackathon:
 
 ## Links
 
-- Repo: `[[url]]`
+- Repo: https://github.com/Yinghao-Guan/ai-hackathon-26
 - Demo video: `[[url]]`
