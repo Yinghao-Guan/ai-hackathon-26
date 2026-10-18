@@ -1,0 +1,9 @@
+# Member B — MBPP data generation, shared test harness, eval driver
+datasets>=2.14.0
+anthropic>=0.40.0
+python-dotenv>=1.0.0
+
+# Dev / CI (optional): pytest>=8.0
+
+# Member A (training) and Lead (runtime) install separately, e.g.:
+#   torch, transformers, peft==0.21.2, accelerate, bitsandbytes (as needed)
