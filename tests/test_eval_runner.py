@@ -36,5 +36,6 @@ def test_member_b_driver_runs_runtime_sessions(model, tmp_path, method):
     turns, task_row = rows[:-1], rows[-1]
     assert emitted == 1 and task_row["type"] == "task" and task_row["n_turns"] == len(turns) >= 2
     assert task_row["prefill_tokens_total"] == sum(t["prefill_tokens"] + t["canon_tokens"] for t in turns)
+    assert task_row["canon_tokens_total"] == sum(t["canon_tokens"] for t in turns)  # CONTRACT.md section 3
     assert all(t["method"] == method and "verdict" in t for t in turns)
     assert task_row["ctx_tokens"] > 0 and task_row["gpu_s"] > 0
