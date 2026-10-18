@@ -105,7 +105,9 @@ def run_sweep(
             for method, engine in engines.items():
                 outputs = iter(tool_outputs)
                 result = run_session(engine, task, lambda code: next(outputs), forced_outputs=turns)
-                for record in result.records(run_id=f"{run_prefix}-{method}", machine=machine,
+                # One run_id per method and size, "sweep-A2-ctx4k": the dashboard reads the size from it
+                # and keeps sweep runs out of quality numbers. `passed` only means the replay completed.
+                for record in result.records(run_id=f"{run_prefix}-{method}-ctx{size / 1000:g}k", machine=machine,
                                              task_id=f"ctx{size}-r{rep}", passed=True):
                     log.write(record)
                     records.append(record)

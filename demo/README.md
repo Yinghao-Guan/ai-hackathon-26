@@ -13,7 +13,7 @@ on the same data:
      The default task is the one where both methods passed with the most turns. First-token time appears only
      for `machine == "4090"` rows.
   2. **Cost vs quality**: mean `prefill_tokens_total` per task against pass rate, one point per method, plus a
-     table. Only the main (~3k context) runs are used; sweep runs are excluded.
+     table. Only the main eval runs (~2k context, the eval's real size) are used; sweep runs are excluded.
   3. **Context sweep**: prefill tokens saved per task (A2 − A5-H1, paired by `task_id`) against the median
      `ctx_tokens` of each context size, headed by a sentence stating the range of the share saved.
 
@@ -90,7 +90,9 @@ All in [`js/metrics.js`](js/metrics.js), shared by the headline, table and chart
 | Sweep point | the same three numbers for the A2 and A5-H1 runs of one context size; x = median `ctx_tokens` |
 
 **Run selection.** A run is one `run_id`. Its context size comes from `ctxNk` in the `run_id` if present,
-otherwise from the median `ctx_tokens` rounded to 0.5k. The main comparison uses the ~3k runs; if several runs
+otherwise from the median `ctx_tokens` rounded to 0.5k. Runs whose `run_id` starts with `sweep-` are
+context-sweep replays (`bench/cost_sweep.py`): they feed the Context sweep tab and never the main comparison or
+pass rates. The main comparison uses the ~2k runs; if several runs
 of a method qualify, the one with the most tasks wins (then 4090, then name), and the page says which.
 
 **Accounting audit.** For every task, `prefill_tokens_total` must equal Σ over its turns of
@@ -104,7 +106,8 @@ a separately labelled turn-derived ratio is shown next to (never instead of) the
 - `ttft_ms`, `turn_ms`, `kv_mb`, `text`, `gpu_s`, `peak_kv_mb` may be `null`; every other field is required.
 - `task_id` may be an integer or a string; `machine` must be `4090`, `4070` or `mac`.
 - A `run_id` has exactly one method and one machine; conflicting lines are rejected.
-- `canon_tokens` on turn *i* is work done after turn *i*; the replay draws it on that turn's bar.
+- `canon_tokens` on turn *i* is the previous turn's header and output, re-read at the start of turn *i*
+  (CONTRACT §3); the replay draws it right after the cached prefix on turn *i*'s bar.
 
 ## Files
 
