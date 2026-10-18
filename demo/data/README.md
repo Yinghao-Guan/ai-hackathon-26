@@ -1,10 +1,13 @@
 # Real event logs
 
-Put the real eval log here as `events.jsonl` (CONTRACT.md §3 schema). The dashboard loads it automatically and
-switches from mock to real mode. Multiple runs can share one file:
+`events.jsonl` and `sources.json` are generated; don't edit them by hand. Rebuild them after a new eval or
+cost sweep:
 
 ```bash
-cat eval/logs/*.jsonl > demo/data/events.jsonl
+python demo/collect_logs.py           # newest 4090 eval + the 4090 cost sweep
+python demo/collect_logs.py --check   # exit 1 if these files are stale or invalid
 ```
 
-Never put `mock-` run_ids in a real log; the dashboard drops them when real runs are present.
+`sources.json` records which result files went in (path, lines, sha256, last commit, run_ids). The dashboard
+shows it under Data validation and warns if `events.jsonl` no longer matches it. Options and rules are in
+[../README.md](../README.md#refresh-the-real-log-after-a-new-eval-or-sweep).

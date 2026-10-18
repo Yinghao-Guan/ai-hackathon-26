@@ -72,8 +72,9 @@ function renderStatus() {
   const issues = auditIssueCount();
   const btn = $("status");
   btn.dataset.state = state.source?.kind === "error" || p.accepted === 0 ? "error"
-    : (p.rejected > 0 || issues > 0 || state.dataset.notes.length) ? "warn" : "ok";
-  $("status-text").textContent = p.rejected || issues ? `${plural(p.rejected + issues, "data issue")}` : "Data validation";
+    : (p.rejected > 0 || issues > 0 || state.dataset.notes.length || state.source?.provenance?.stale) ? "warn" : "ok";
+  $("status-text").textContent = p.rejected || issues ? `${plural(p.rejected + issues, "data issue")}`
+    : state.source?.provenance?.stale ? "Log out of date" : "Data validation";
   btn.setAttribute("aria-label", `Data validation: ${plural(p.accepted, "record")}, ${p.rejected} rejected${issues ? `, ${plural(issues, "accounting issue")}` : ""}`);
   const tag = $("mode-tag");
   tag.hidden = !(state.dataset.mode === "mock" || state.dataset.mode === "real");
@@ -484,6 +485,25 @@ function renderSweep() {
 }
 
 // ---------- Validation drawer ----------
+/** Which result files the default real log was built from (demo/data/sources.json, by collect_logs.py). */
+function renderProvenance(body, source) {
+  if (source?.kind !== "default-real") return;
+  const prov = source.provenance;
+  if (!prov) {
+    body.append(el("p", { class: "note warn", text: "No sources.json next to events.jsonl, so this log can't be traced to its result files. Rebuild it with python demo/collect_logs.py." }));
+    return;
+  }
+  body.append(el("h3", { text: "Built from" }),
+    el("ul", {}, prov.sources.map((s) => el("li", {},
+      el("code", { text: s.path }),
+      `: ${plural(s.lines, "line")}, ${plural(s.run_ids?.length ?? 0, "run")}`,
+      s.last_commit ? `, last changed in ${s.last_commit}` : ", not committed",
+      `. sha256 ${String(s.sha256).slice(0, 12)}…`))));
+  if (prov.stale) {
+    body.append(el("p", { class: "note warn", text: `${prov.stale}. The page shows the log as loaded; rebuild it with python demo/collect_logs.py so it matches its sources.` }));
+  }
+}
+
 function renderValidation() {
   const body = $("validation-body");
   body.replaceChildren();
@@ -493,6 +513,7 @@ function renderValidation() {
     el("b", { text: `${p.accepted} accepted` }), `, ${p.rejected} rejected.`));
   if (isMock()) body.append(el("p", { class: "note warn", text: `${state.source?.reason ? state.source.reason + " " : ""}These synthetic logs come from demo/mock/make_mock.py. Load a real event log to replace them.` }));
   for (const n of state.dataset.notes) body.append(el("p", { class: "note warn", text: n }));
+  renderProvenance(body, state.source);
   if (p.errors.length) {
     const shown = p.errors.slice(0, 200);
     body.append(el("h3", { text: `Rejected lines (${p.errors.length})` }),

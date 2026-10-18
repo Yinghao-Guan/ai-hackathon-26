@@ -278,6 +278,7 @@ table.data td.na { color: var(--ink-3); }
 .validation h3 { margin: 10px 0 2px; font-size: 15px; }
 .validation ul { margin: 0; padding-left: 20px; font-size: 14px; color: var(--ink-2); max-width: 90ch; }
 .validation li { margin: 3px 0; }
+.validation code { font-family: "Atkinson Hyperlegible Mono", ui-monospace, monospace; font-size: 0.95em; color: var(--ink); }
 .validation li.error { color: var(--fail); }
 .validation li.warn { color: var(--warn-ink); }
 

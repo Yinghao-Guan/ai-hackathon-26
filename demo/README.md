@@ -60,15 +60,31 @@ HTTP. Opening the pages from `file://` will not load the ES modules.
 The dashboard picks its data in this order:
 
 1. `?log=<path>` in the URL, e.g. `http://localhost:8000/dashboard.html?log=data/a5h1-1.5b-ctx3k.jsonl`
-2. `demo/data/events.jsonl`, if it exists (the real default, so the 404 for it in the console is expected
-   until real logs arrive)
+2. `demo/data/events.jsonl`, the real default, built by `collect_logs.py` (below)
 3. `demo/mock/mock_events.jsonl`, the mock fixture, labelled "Mock data — not results"
 
 You can also use **Load event log** or drag a `.jsonl` file onto the page. A loaded file **replaces** the
 current data; it is never merged.
 
-To show real results: concatenate the eval logs into `demo/data/events.jsonl` (e.g.
-`cat eval/logs/*.jsonl > demo/data/events.jsonl`) or load them with the file picker.
+### Refresh the real log after a new eval or sweep
+
+```bash
+python demo/collect_logs.py           # or: cd demo && npm run data
+python demo/collect_logs.py --check   # exit 1 if demo/data/ is stale or invalid (npm run data:check)
+```
+
+`collect_logs.py` (stdlib only) rebuilds `demo/data/events.jsonl` from the newest
+`eval/results/eval-*-4090-*.jsonl` and `bench/results/cost_sweep_4090.jsonl`, and writes
+`demo/data/sources.json`: each source's path, line count, sha256 (LF line endings), the commit that last
+changed it and its run_ids. It refuses `mock-` runs, a run_id that appears in two sources, and records from
+another machine (`--machine` picks one; timings only compare on one machine). Pick sources by hand with
+`--eval PATH...` / `--sweep PATH...` (`none` leaves one out). It then validates the result with the
+dashboard's own rules (`node demo/check_log.mjs`; skipped with a note if Node is missing), and fails if any
+line would be rejected or any accounting check fails.
+
+The dashboard reads `sources.json` next to the default log and lists the sources under **Data validation**,
+so every number traces back to its result files. If `events.jsonl` no longer matches the manifest (edited
+by hand, half copied), the status in the header reads "Log out of date" and the drawer says how to rebuild.
 
 ## Mock data
 
@@ -88,7 +104,8 @@ invented, and deliberately not all in A5's favour.
 
 ```bash
 cd demo
-node --test tests/*.test.mjs     # Node 18+; no packages needed
+node --test tests/*.test.mjs     # Node 18+; no packages needed (npm test)
+python -m unittest discover -s tests -p "test_*.py"   # collect_logs.py; stdlib only (npm run test:py)
 ```
 
 The tests cover parsing and validation, pass rate, the headline ratio on paired tasks, sweep aggregation,
@@ -151,8 +168,12 @@ js/app.js             dashboard entry point and rendering
 js/present.js         the ?present stage
 mock/make_mock.py     deterministic mock generator
 mock/mock_events.jsonl
-tests/metrics.test.mjs
-data/                 put the real events.jsonl here
+collect_logs.py       builds data/events.jsonl + data/sources.json from eval/results and bench/results
+check_log.mjs         validates a log with js/metrics.js (used by collect_logs.py; also runs standalone)
+tests/*.test.mjs      metric, chart and tape tests (Node)
+tests/test_collect_logs.py
+data/events.jsonl     the real log the dashboard loads (generated; don't edit by hand)
+data/sources.json     which result files it was built from (generated)
 ```
 
 ## Live demo

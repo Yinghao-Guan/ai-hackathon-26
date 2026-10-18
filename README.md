@@ -68,9 +68,11 @@ python -m http.server 8000     # open http://localhost:8000
   - **Context sweep:** tokens saved per task as the shared context grows (≈1k / 2k / 4k / 8k).
 - **Presentation stage** (`dashboard.html?present`): one full-screen beat per part of the pitch, for the video.
 
-With no real log present, the dashboard shows a clearly labelled mock fixture. To load real results, put the
-eval log at `demo/data/events.jsonl`, or use **Load event log**, or drag a `.jsonl` file onto the page. Details,
-metric definitions and the event-log assumptions are in [demo/README.md](demo/README.md).
+The dashboard loads `demo/data/events.jsonl`, built from the eval and sweep results by
+`python demo/collect_logs.py` (run it again after a new eval or sweep; `--check` reports a stale log). You can
+also use **Load event log** or drag a `.jsonl` file onto the page; with no real log it shows a clearly
+labelled mock fixture. Details, metric definitions and the event-log assumptions are in
+[demo/README.md](demo/README.md).
 
 ## Metrics
 

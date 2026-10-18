@@ -1,0 +1,45 @@
+{
+  "generated_by": "demo/collect_logs.py",
+  "machine": "4090",
+  "events": {
+    "path": "demo/data/events.jsonl",
+    "lines": 2823,
+    "sha256": "743b8c8032e718d927585b171722d931b452689a4688caa87752fe38c948881a"
+  },
+  "sources": [
+    {
+      "path": "eval/results/eval-1.5b-4090-202610180231.jsonl",
+      "lines": 2523,
+      "sha256": "33699e83d61c93e763beabff5d0c9ffd023f6d113fcf5cabea61e7c6ff49880a",
+      "last_commit": "77031f7",
+      "run_ids": [
+        "eval-1.5b-4090-202610180231-A2",
+        "eval-1.5b-4090-202610180231-A5-H1",
+        "eval-1.5b-4090-202610180231-A5-H2",
+        "eval-1.5b-4090-202610180231-A3",
+        "eval-1.5b-4090-202610180231-A1",
+        "eval-1.5b-4090-202610180231-A0"
+      ]
+    },
+    {
+      "path": "bench/results/cost_sweep_4090.jsonl",
+      "lines": 300,
+      "sha256": "2638133f75ac16457d4e43e08bc4a0d2417989e0b6917cf40e1812173fdc53ba",
+      "last_commit": "79e1f6a",
+      "run_ids": [
+        "sweep-A2-ctx1k",
+        "sweep-A5-H1-ctx1k",
+        "sweep-A5-H2-ctx1k",
+        "sweep-A2-ctx2k",
+        "sweep-A5-H1-ctx2k",
+        "sweep-A5-H2-ctx2k",
+        "sweep-A2-ctx4k",
+        "sweep-A5-H1-ctx4k",
+        "sweep-A5-H2-ctx4k",
+        "sweep-A2-ctx8k",
+        "sweep-A5-H1-ctx8k",
+        "sweep-A5-H2-ctx8k"
+      ]
+    }
+  ]
+}
