@@ -65,15 +65,33 @@ Every headline number is computed in the browser from the loaded event logs; not
 - **Comparable timing.** We trained and evaluated across laptops with different GPUs; timing is compared only
   on one RTX 4090, and token counts (deterministic) are the primary metric.
 
-`[[add any challenge that actually happened during training/eval]]`
+- **Library overhead that looked like a result.** On our first 4090 run, aLoRA decoded 15% slower per token
+  than plain LoRA, so short sessions took longer with RoleKV. The overhead came from PEFT's aLoRA path, not
+  from aLoRA itself:
+  - a boolean-mask row selection that waits for the GPU in every layer;
+  - per-call hook registration that walks the whole model.
+
+  We replaced them with an equivalent slice and persistent hooks, both checked against PEFT's own output.
+  Decoding is now within 1–4% of plain LoRA.
+- **A default that flattered us.** PEFT upcasts adapter weights to fp32. Plain LoRA applies its adapter to
+  every token, so the upcast slowed it far more than aLoRA, which is active on the role header only: +39% vs
+  +7% on a 4k-token prefill. We run every method's adapters in bf16. That made our latency ratios smaller,
+  and fair.
+- **Training data that didn't match eval.** The generated SFT data used a different system prompt than the
+  runtime. We re-exported it without new API calls, and a test now guards the data contract.
 
 ## Accomplishments that we're proud of
 
-- `[[X.XX]]`× fewer prefill tokens per task for A5-H1 vs A2 (`[[YY.Y]]`% fewer, `[[N]]` paired MBPP tasks,
-  ≈3k-token shared context). Source: `[[run_ids]]`.
+- In a fixed 4-turn session, A5-H1 computes 3.6× fewer tokens than A2 at ~1k tokens of shared context and
+  3.9× fewer at ~8k. On the RTX 4090, its first token after a role switch arrives in `[[A5-H1 TTFT]]` ms at
+  every size, while A2's grows from `[[A2 1k]]` to `[[A2 8k]]` ms. Source: `bench/results/cost_sweep_4090.md`.
+- `[[X.XX]]`× fewer prefill tokens per task for A5-H1 vs A2 in the eval (`[[YY.Y]]`% fewer, `[[N]]` paired MBPP
+  tasks, ≈1.8k-token shared context). Source: `[[run_ids]]`.
 - Pass rate `[[A5-H1 %]]` vs `[[A2 %]]` for per-role LoRAs. `[[State the difference plainly; do not claim
   parity unless the numbers show it.]]`
-- `[[Correctness tests: N/4 passing, on what hardware/precision]]`
+- Every runtime correctness test passes on the Mac CPU in fp32: cache equivalence, handoff canonicalization,
+  adapter on during decode, and cost accounting checked against an independent embedding-layer counter.
+  `[[4090 bf16 test run]]`
 - A dashboard that makes a KV-cache idea understandable in seconds, and refuses to show unverified numbers as
   results.
 
@@ -82,7 +100,9 @@ Every headline number is computed in the browser from the loaded event logs; not
 - Cache sharing is only as good as its correctness: a single silently-disabled adapter would have produced
   great-looking savings and wrong outputs. Equivalence tests had to come before any experiment.
 - The savings come from the shared context, so they depend on how long it is relative to what each role
-  writes. `[[Summarize the context-sweep result once measured.]]`
+  writes. In a fixed 4-turn session, the token saving is 3.6× at ~1k
+  tokens of shared context and 3.9× at ~8k. It approaches the number of turns, because per-role LoRAs re-read
+  the context once per turn. Switch latency diverges much faster: `[[TTFT summary]]`.
 - `[[Measured finding about H1 vs H2 quality, if run.]]`
 - `[[Measured finding about aLoRA vs LoRA quality at our ranks.]]`
 
