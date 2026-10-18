@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   parseJSONL, isolateDataset, buildRuns, analyze, headline, pairTasks, passRate, sweepSeries,
   selectDefaultContextRuns, auditTask, ttftEligible, turnSegments, turnTotals, meanGpuSeconds,
+  tapeSpans, featuredTask, replayContextSizes, runFor, sweepSummary,
 } from "../js/metrics.js";
 
 // ---------- toy fixture helpers ----------
@@ -260,4 +261,48 @@ test("mock fixture parses cleanly, is all mock, and every task passes the accoun
   assert.deepEqual(new Set([...a.runs.values()].map((r) => r.method)), new Set(["A0", "A1", "A2", "A3", "A5-H1", "A5-H2"]));
   assert.deepEqual(a.sweep.points.map((pt) => pt.k), [1, 3, 4, 8]);
   assert.equal(a.headlineTrusted, true);
+});
+
+// Session tape geometry, replay defaults and the sweep summary.
+test("tape spans place cache, prefill, written output and the H1 re-read end to end", () => {
+  const t = turn("a5-ctx3k", "A5-H1", 1, 1, { prefill: 98, reused: 3305, decode: 19, canon: 28 });
+  const s = tapeSpans(t);
+  assert.deepEqual(s.reused, [0, 3305]);
+  assert.deepEqual(s.recomputed, [3305, 3403]);
+  assert.deepEqual(s.written, [3403, 3422]);
+  assert.deepEqual(s.canon, [3394, 3422]);
+  assert.equal(s.end, 3422);
+  assert.equal(tapeSpans(turn("a2-ctx3k", "A2", 1, 0, { prefill: 3212, decode: 93 })).canon, null);
+});
+
+test("the featured replay task prefers both methods passing, then the most turns", () => {
+  const recs = [];
+  const add = (method, run, id, n, passed) => {
+    for (let i = 0; i < n; i++) recs.push(turn(run, method, id, i));
+    recs.push(task(run, method, id, { passed, n_turns: n, total: 100 * n }));
+  };
+  add("A2", "a2-ctx3k", 1, 6, false); add("A5-H1", "a5-ctx3k", 1, 6, false);
+  add("A2", "a2-ctx3k", 2, 4, true); add("A5-H1", "a5-ctx3k", 2, 4, true);
+  add("A2", "a2-ctx3k", 3, 2, true); add("A5-H1", "a5-ctx3k", 3, 2, true);
+  const a = load(recs);
+  assert.equal(featuredTask(a.runs.get("a2-ctx3k"), a.runs.get("a5-ctx3k")), "2");
+});
+
+test("replay context sizes need both methods, and runFor picks within one size", () => {
+  const a = load([
+    ...session("a2-ctx3k", "A2", 1, [3000, 3000]), ...session("a5-ctx3k", "A5-H1", 1, [3000, 100]),
+    ...session("a2-ctx8k", "A2", 1, [8000, 8000]),
+  ]);
+  assert.deepEqual(replayContextSizes(a.runs), [3]);
+  assert.equal(runFor(a.runs, "A2", 8).run_id, "a2-ctx8k");
+  assert.equal(runFor(a.runs, "A5-H1", 8), null);
+});
+
+test("sweep summary reports the share and absolute saving ranges, or null with one point", () => {
+  const pts = [
+    { k: 1, meanSaved: 1000, fractionSaved: 0.6 }, { k: 3, meanSaved: 4000, fractionSaved: 0.7 },
+    { k: 8, meanSaved: 9000, fractionSaved: 0.65 },
+  ];
+  assert.deepEqual(sweepSummary(pts), { minShare: 0.6, maxShare: 0.7, firstSaved: 1000, lastSaved: 9000, firstK: 1, lastK: 8 });
+  assert.equal(sweepSummary(pts.slice(0, 1)), null);
 });

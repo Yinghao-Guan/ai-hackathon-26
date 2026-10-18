@@ -4,56 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RoleKV Dashboard</title>
-  <meta name="description" content="Compare per-role LoRAs against shared-cache Activated LoRAs: recomputation, reuse and pass rate from RoleKV event logs.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='4' width='9' height='8' rx='1.5' fill='%23F2836B'/%3E%3Crect x='11' y='4' width='4' height='8' rx='1.5' fill='%234CC3CB'/%3E%3C/svg%3E">
+  <meta name="description" content="Compare per-role LoRAs against shared-cache Activated LoRAs: tokens re-read, reused and pass rate from RoleKV event logs.">
+  <meta name="theme-color" content="#F3F5F6">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.5' y='4.5' width='15' height='7' rx='1' fill='%23fff' stroke='%2315191F'/%3E%3Crect x='1' y='5' width='10' height='6' fill='%23D7F1F3'/%3E%3Crect x='11' y='5' width='4.5' height='6' fill='%23F2603F'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="wordmark">RoleKV</span>
-      <span class="descriptor">Shared-KV role adapters for coding agents</span>
-    </div>
-    <div class="topbar-actions">
-      <button type="button" class="status" id="status" aria-controls="validation" title="Open data validation">
-        <span class="status-dot" aria-hidden="true"></span><span id="status-text">Loading</span>
-      </button>
-      <span class="mode-badge" id="mode-badge" hidden></span>
-      <label class="btn" for="file-input">Load event log</label>
-      <input type="file" id="file-input" accept=".jsonl,.json,.txt,application/json" hidden>
-    </div>
-  </header>
+  <div id="dashboard">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="RoleKV dashboard home">
+        <svg class="mark" viewBox="0 0 40 16" aria-hidden="true"><rect x="0.75" y="2.75" width="38.5" height="10.5" rx="1.5" class="mark-paper"/><rect x="1.5" y="3.5" width="27" height="9" class="mark-cache"/><rect x="28.5" y="3.5" width="10" height="9" class="mark-ink"/></svg>
+        <span class="wordmark">RoleKV</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="mode-tag" id="mode-tag" hidden></span>
+        <button type="button" class="status" id="status" aria-controls="validation">
+          <span class="status-dot" aria-hidden="true"></span><span id="status-text">Loading</span>
+        </button>
+        <a class="btn" id="present-link" href="?present">Presentation</a>
+        <label class="btn" for="file-input">Load event log</label>
+        <input type="file" id="file-input" accept=".jsonl,.json,.txt,application/json" class="visually-hidden">
+      </div>
+    </header>
 
-  <div class="banner" id="banner" role="status" hidden></div>
+    <div class="banner" id="banner" role="status" hidden></div>
 
-  <main>
-    <section class="intro">
-      <h1>Measure the cost of every role switch.</h1>
-      <p class="finding pending" id="finding" aria-live="polite">Loading the event log.</p>
-      <div class="finding-notes" id="finding-notes"></div>
-    </section>
+    <main>
+      <section class="intro" aria-labelledby="finding">
+        <h1 class="finding pending" id="finding" aria-live="polite">Loading the event log.</h1>
+        <p class="finding-sub" id="finding-sub"></p>
+        <div class="finding-notes" id="finding-notes"></div>
+      </section>
 
-    <nav class="tabs" role="tablist" aria-label="Views">
-      <button role="tab" id="tab-replay" aria-controls="view-replay" aria-selected="true">Session replay</button>
-      <button role="tab" id="tab-quality" aria-controls="view-quality" aria-selected="false" tabindex="-1">Cost vs quality</button>
-      <button role="tab" id="tab-sweep" aria-controls="view-sweep" aria-selected="false" tabindex="-1">Context sweep</button>
-    </nav>
+      <div class="tabs-wrap">
+        <nav class="tabs" role="tablist" aria-label="Views">
+          <button role="tab" id="tab-replay" aria-controls="view-replay" aria-selected="true">Session replay</button>
+          <button role="tab" id="tab-quality" aria-controls="view-quality" aria-selected="false" tabindex="-1">Cost vs quality</button>
+          <button role="tab" id="tab-sweep" aria-controls="view-sweep" aria-selected="false" tabindex="-1">Context sweep</button>
+        </nav>
+      </div>
 
-    <section class="view" id="view-replay" role="tabpanel" aria-labelledby="tab-replay"></section>
-    <section class="view" id="view-quality" role="tabpanel" aria-labelledby="tab-quality" hidden></section>
-    <section class="view" id="view-sweep" role="tabpanel" aria-labelledby="tab-sweep" hidden></section>
+      <section class="view" id="view-replay" role="tabpanel" aria-labelledby="tab-replay"></section>
+      <section class="view" id="view-quality" role="tabpanel" aria-labelledby="tab-quality" hidden></section>
+      <section class="view" id="view-sweep" role="tabpanel" aria-labelledby="tab-sweep" hidden></section>
 
-    <details class="validation" id="validation">
-      <summary>Data validation</summary>
-      <div id="validation-body"></div>
-    </details>
-  </main>
+      <details class="validation" id="validation">
+        <summary><h2>Data validation</h2></summary>
+        <div id="validation-body"></div>
+      </details>
+    </main>
+    <div class="dropzone" id="dropzone" hidden><div>Drop a JSONL event log to replace the current data</div></div>
+  </div>
 
-  <div class="dropzone" id="dropzone" hidden><div>Drop a JSONL event log to replace the current data</div></div>
+  <div id="stage" hidden></div>
+
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <p class="visually-hidden" id="announcer" aria-live="polite"></p>
 </body>
 </html>

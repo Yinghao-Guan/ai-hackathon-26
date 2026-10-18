@@ -1,18 +1,29 @@
 # RoleKV demo dashboard
 
-A static page that reads RoleKV event logs (JSONL, [CONTRACT.md §3](../docs/CONTRACT.md)) and shows three views:
+A static page that reads RoleKV event logs (JSONL, [CONTRACT.md §3](../docs/CONTRACT.md)). It has two surfaces
+on the same data:
 
-1. **Session replay**: A2 and A5-H1 on the same task. Each turn shows an A2 bar directly above an A5-H1 bar on
-   one scale, split into computed, reused and recomputed-at-handoff tokens, with each run's reviewer verdict.
-   First-token time appears only for `machine == "4090"` rows.
-2. **Cost vs quality**: mean `prefill_tokens_total` per task against pass rate, one point per method, plus a
-   table. Only the main (~3k context) runs are used; sweep runs are excluded.
-3. **Context sweep**: prefill tokens saved per task (A2 − A5-H1, paired by `task_id`) against the median
-   `ctx_tokens` of each context size.
+- **Dashboard** (default route), for the team. It opens with the result written as one sentence ("RoleKV
+  re-read N% fewer tokens than per-role LoRAs"), followed by tokens per task, the number of paired tasks and
+  both pass rates, so the saving never appears without its sample size and quality. Three tabs:
+  1. **Session replay**: A2 (per-role LoRAs) and A5-H1 (RoleKV) on the same task. Each turn is a *session tape*
+     drawn to scale: paper is the session so far, coral ink is what the turn had to read again, the cyan rule
+     is what it reused from the cache, the violet underline is the H1 handoff re-read, and the outline is what
+     the role wrote. Play, step, or show all; the tapes are focusable and their tooltips work from the keyboard.
+     The default task is the one where both methods passed with the most turns. First-token time appears only
+     for `machine == "4090"` rows.
+  2. **Cost vs quality**: mean `prefill_tokens_total` per task against pass rate, one point per method, plus a
+     table. Only the main (~3k context) runs are used; sweep runs are excluded.
+  3. **Context sweep**: prefill tokens saved per task (A2 − A5-H1, paired by `task_id`) against the median
+     `ctx_tokens` of each context size, headed by a sentence stating the range of the share saved.
 
-The page opens with the result written as one sentence (prefill ratio, tokens per task, number of paired tasks
-and both pass rates), so the ratio is never shown without its sample size and quality. It is computed from
-whatever log is loaded; nothing is hardcoded.
+  Tab, task and context size are kept in the URL (`?tab=replay&task=86&ctx=3`).
+- **Presentation stage** (`?present`), for the video. One full-viewport beat per part of the pitch: the cost of
+  a role switch, how the shared cache works, the replay, cost vs quality, the sweep, the result, the end card.
+  Arrow keys / space / Page Up and Down move between beats, R replays the current beat, and the corner controls
+  fade when the pointer rests. The mock tag never hides. Add `&task=<id>` to choose the replay task.
+
+Every number on both surfaces is computed from whatever log is loaded; nothing is hardcoded.
 
 No build step, no dependencies. Charts are hand-written SVG, so the page works without network access
 (only the Google Fonts request needs a connection, and it falls back to system fonts).
@@ -33,7 +44,7 @@ The page picks its data in this order:
 1. `?log=<path>` in the URL, e.g. `http://localhost:8000/?log=data/a5h1-1.5b-ctx3k.jsonl`
 2. `demo/data/events.jsonl`, if it exists (the real default, so the 404 for it in the console is expected
    until real logs arrive)
-3. `demo/mock/mock_events.jsonl`, the mock fixture, with a visible "No real log" note
+3. `demo/mock/mock_events.jsonl`, the mock fixture, labelled "Mock data — not results"
 
 You can also use **Load event log** or drag a `.jsonl` file onto the page. A loaded file **replaces** the
 current data; it is never merged.
@@ -48,8 +59,8 @@ python demo/mock/make_mock.py    # rewrites demo/mock/mock_events.jsonl (seed 0,
 ```
 
 Every mock `run_id` starts with `mock-`. When a log contains any non-mock run, all `mock-` records are dropped
-and the banner says so, so mock numbers cannot leak into real results. In mock mode the page shows
-"MOCK DATA — NOT EXPERIMENTAL RESULTS", a "Mock data" badge, and a note under the finding.
+and the banner says so, so mock numbers cannot leak into real results. In mock mode both surfaces show a
+"Mock data — not results" tag, and the finding and the stage's result beat carry a note.
 
 The mock token accounting follows the runtime rules in TRACKS.md (A2 re-prefills everything; one-cache
 methods prefill only new tokens; A5-H1 recomputes header + body at each handoff). Pass rates and timings are
@@ -63,8 +74,8 @@ node --test tests/*.test.mjs     # Node 18+; no packages needed
 ```
 
 The tests cover parsing and validation, pass rate, the headline ratio on paired tasks, sweep aggregation,
-counting canonicalization exactly once, missing timings, mock/real isolation, default-context selection, and
-the mock fixture's accounting invariants.
+counting canonicalization exactly once, missing timings, mock/real isolation, default-context selection,
+session-tape geometry, the featured replay task, the sweep summary, and the mock fixture's accounting invariants.
 
 ## How the numbers are computed
 
@@ -98,10 +109,15 @@ a separately labelled turn-derived ratio is shown next to (never instead of) the
 ## Files
 
 ```text
-index.html            page shell
-styles.css            styles; tokens match the Paper design
-js/metrics.js         pure data functions (parse, validate, select, compute); no DOM
-js/app.js             rendering and interaction
+index.html            page shell for both surfaces
+styles.css            the session-tape world: tokens, tape, dashboard and stage styles
+js/metrics.js         pure data functions (parse, validate, select, compute, tape geometry); no DOM
+js/data.js            event-log loading (?log=, real default, mock fallback, file picker)
+js/ui.js              DOM helpers, formatting, plain method names, tooltip
+js/tape.js            the session tape and the session map
+js/charts.js          cost-vs-quality and context-sweep SVG charts
+js/app.js             entry point and dashboard rendering
+js/present.js         the ?present stage
 mock/make_mock.py     deterministic mock generator
 mock/mock_events.jsonl
 tests/metrics.test.mjs

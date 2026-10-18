@@ -400,10 +400,63 @@ export function turnSegments(turn) {
   return { recomputed: turn.prefill_tokens, reused: turn.reused_tokens, canon: turn.canon_tokens };
 }
 
+/**
+ * Token positions of one turn on the session tape, in tokens from the start of the session.
+ * The cache holds [0, reused); [reused, inputEnd) is prefilled this turn; the role then writes
+ * [inputEnd, end). H1 canonicalization re-reads the turn's header + output, the last canon_tokens before end.
+ */
+export function tapeSpans(turn) {
+  const inputEnd = turn.reused_tokens + turn.prefill_tokens;
+  const end = inputEnd + turn.decode_tokens;
+  const canon = Math.min(turn.canon_tokens, end);
+  return {
+    reused: [0, turn.reused_tokens],
+    recomputed: [turn.reused_tokens, inputEnd],
+    written: [inputEnd, end],
+    canon: canon ? [end - canon, end] : null,
+    end,
+  };
+}
+
 /** Task ids that have turn records in both runs (for the replay task picker). */
 export function replayTaskKeys(runA, runB) {
   if (!runA || !runB) return [];
   return [...runA.turns.keys()].filter((k) => runB.turns.has(k)).sort(compareTaskKeys);
+}
+
+/**
+ * The task the replay opens on: both methods passed if possible (a failing default reads as a broken
+ * demo), then the most role switches (the contrast is clearest), then the lowest task id.
+ */
+export function featuredTask(runA, runB) {
+  const keys = replayTaskKeys(runA, runB);
+  const score = (k) => (runA.tasks.get(k)?.passed ? 1 : 0) + (runB.tasks.get(k)?.passed ? 1 : 0);
+  const turns = (k) => Math.min(runA.turns.get(k).length, runB.turns.get(k).length);
+  return keys.slice().sort((x, y) => score(y) - score(x) || turns(y) - turns(x) || compareTaskKeys(x, y))[0] ?? null;
+}
+
+/** Context sizes (k tokens) that have both an A2 and an A5-H1 run with turn records. */
+export function replayContextSizes(runs) {
+  const has = (method, k) => [...runs.values()].some((r) => r.method === method && r.ctxK === k && r.turns.size > 0);
+  const sizes = new Set([...runs.values()].map((r) => r.ctxK).filter((k) => k !== null));
+  return [...sizes].filter((k) => has("A2", k) && has("A5-H1", k)).sort((a, b) => a - b);
+}
+
+/** The pick-one-run rule, restricted to one method and context size, among runs with turn records. */
+export function runFor(runs, method, ctxK) {
+  return pickRun([...runs.values()].filter((r) => r.method === method && r.ctxK === ctxK && r.turns.size > 0));
+}
+
+/** One-line reading of the sweep: range of the share saved and of the absolute saving. */
+export function sweepSummary(points) {
+  const valid = points.filter((p) => p.meanSaved !== null && p.fractionSaved !== null);
+  if (valid.length < 2) return null;
+  const shares = valid.map((p) => p.fractionSaved);
+  return {
+    minShare: Math.min(...shares), maxShare: Math.max(...shares),
+    firstSaved: valid[0].meanSaved, lastSaved: valid[valid.length - 1].meanSaved,
+    firstK: valid[0].k, lastK: valid[valid.length - 1].k,
+  };
 }
 
 /** Complete analysis of a dataset. The UI renders only from this object. */
