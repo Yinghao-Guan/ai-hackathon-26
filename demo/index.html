@@ -13,188 +13,82 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500;700&family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="home.css">
+  <script type="importmap">{"imports": {"three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/"}}</script>
   <script type="module" src="js/home.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <div class="bg" aria-hidden="true"><canvas id="field"></canvas></div>
 
-  <header class="nav" id="nav">
+  <!-- The KV cache, in three dimensions: two slabs playing the same session (js/cache3d.js). -->
+  <canvas class="scene" id="scene" aria-hidden="true"></canvas>
+  <div class="veil" aria-hidden="true"></div>
+  <div class="scene-labels" aria-hidden="true">
+    <span class="scene-label base" id="label-a2">Per-role LoRAs<small>A2 · a standard LoRA per role</small></span>
+    <span class="scene-label hero" id="label-a5">RoleKV<small>A5-H1 · an Activated LoRA per role</small></span>
+  </div>
+
+  <header class="nav">
     <a class="brand" href="./" aria-label="RoleKV home">
       <svg class="mark" viewBox="0 0 40 16" aria-hidden="true"><rect x="0.75" y="2.75" width="38.5" height="10.5" rx="1.5" class="mark-paper"/><rect x="1.5" y="3.5" width="27" height="9" class="mark-cache"/><rect x="28.5" y="3.5" width="10" height="9" class="mark-ink"/></svg>
       <span class="wordmark">RoleKV</span>
     </a>
-    <nav class="nav-links" aria-label="Sections">
-      <a href="#how">How it works</a>
-      <a href="#numbers">Numbers</a>
-      <a href="#methods">Methods</a>
+    <nav class="nav-links" aria-label="Pages">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="dashboard.html?present">Stage</a>
+      <a href="https://github.com/Yinghao-Guan/ai-hackathon-26" rel="noopener">GitHub ↗</a>
     </nav>
-    <div class="nav-actions">
-      <a class="btn ghost" href="dashboard.html?present">Presentation</a>
-      <a class="btn primary" href="dashboard.html">Open the dashboard</a>
-    </div>
   </header>
 
-  <main id="main">
-    <!-- ================= Hero ================= -->
-    <section class="hero-section">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>LA Hacks 2026 · Shared-KV role adapters for coding agents</p>
-        <h1 class="display">Switch roles.<br><span class="grad">Keep the cache.</span></h1>
-        <p class="lede">RoleKV makes every role of a coding agent an <b>Activated LoRA</b> on one small model. The Coder and the Reviewer share a single KV cache, so a role switch computes only what is new, not the whole session again.</p>
-        <div class="cta-row">
-          <a class="btn primary lg" href="dashboard.html">Open the dashboard</a>
-          <a class="btn ghost lg" href="dashboard.html?present">Watch the 2-minute stage</a>
-          <a class="link" href="https://github.com/Yinghao-Guan/ai-hackathon-26" rel="noopener">GitHub ↗</a>
+  <main class="stage" id="main">
+    <section class="copy">
+      <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>LA Hacks 2026 · Shared-KV role adapters for coding agents</p>
+      <h1 class="display">Switch roles.<br><span class="grad">Keep the cache.</span></h1>
+      <p class="lede">Every role of the agent is an <b>Activated LoRA</b> on one small model. The Coder and the Reviewer share a single KV cache, so a role switch computes only what is new, not the whole session again.</p>
+      <div class="cta-row">
+        <a class="btn primary lg" href="dashboard.html">Open the dashboard</a>
+        <a class="btn ghost lg" href="dashboard.html?present">Watch the 2-minute stage</a>
+      </div>
+      <ul class="chips" aria-label="Measured">
+        <li class="chip"><b id="chip-ratio">3.9×</b><span id="chip-ratio-text">fewer tokens computed at 8.1k context</span></li>
+        <li class="chip"><b id="chip-canon">221</b><span>tokens for an exact handoff</span></li>
+        <li class="chip"><b id="chip-cache">28 × 1,549</b><span>layers × tokens on screen</span></li>
+      </ul>
+    </section>
+
+    <figure class="hud" id="live" aria-labelledby="live-caption">
+      <div class="hud-top">
+        <span class="live-turn" id="live-turn" aria-live="polite">Turn 1 of 4</span>
+        <span class="hud-hint" id="hud-hint">One real 4-turn session · <span class="mono">1,101</span> tokens of shared context · drag the scene to look around, hover a cell</span>
+      </div>
+      <div class="live-rows">
+        <div class="live-row base">
+          <div class="live-label">Per-role LoRAs<small>A2 · re-reads the session every turn</small></div>
+          <canvas class="live-tape" id="tape-a2" aria-hidden="true"></canvas>
+          <div class="live-count"><b><span id="count-a2">0</span><span class="ready" id="ready-a2" aria-hidden="true">ready</span></b><small>tokens computed</small></div>
+        </div>
+        <div class="live-row hero">
+          <div class="live-label">RoleKV<small>A5-H1 · keeps the shared cache</small></div>
+          <canvas class="live-tape" id="tape-a5" aria-hidden="true"></canvas>
+          <div class="live-count"><b><span id="count-a5">0</span><span class="ready" id="ready-a5" aria-hidden="true">ready</span></b><small>tokens computed</small></div>
         </div>
       </div>
-
-      <figure class="live" id="live" aria-labelledby="live-caption">
-        <div class="live-head">
-          <span class="live-title">One real 4-turn session · <span class="mono">1,101</span> tokens of shared context</span>
-          <span class="live-turn" id="live-turn" aria-live="polite">Turn 1 of 4</span>
-        </div>
-        <div class="live-rows">
-          <div class="live-row base">
-            <div class="live-label">Per-role LoRAs<small>A2 · a standard LoRA per role</small></div>
-            <canvas class="live-tape" id="tape-a2" aria-hidden="true"></canvas>
-            <div class="live-count"><b><span id="count-a2">0</span><span class="ready" id="ready-a2" aria-hidden="true">ready</span></b><small>tokens computed</small></div>
-          </div>
-          <div class="live-row hero">
-            <div class="live-label">RoleKV<small>A5-H1 · an Activated LoRA per role</small></div>
-            <canvas class="live-tape" id="tape-a5" aria-hidden="true"></canvas>
-            <div class="live-count"><b><span id="count-a5">0</span><span class="ready" id="ready-a5" aria-hidden="true">ready</span></b><small>tokens computed</small></div>
-          </div>
-        </div>
-        <div class="live-foot">
-          <ul class="key" aria-label="Key">
-            <li><i class="sw ink" aria-hidden="true"></i>read again</li>
-            <li><i class="sw cache" aria-hidden="true"></i>reused from the cache</li>
-            <li><i class="sw canon" aria-hidden="true"></i>re-read at handoff</li>
-            <li><i class="sw written" aria-hidden="true"></i>written this turn</li>
-          </ul>
-          <span class="live-ratio" id="live-ratio" hidden></span>
+      <div class="hud-foot">
+        <ul class="key" aria-label="Key">
+          <li><i class="sw ink" aria-hidden="true"></i>read again</li>
+          <li><i class="sw cache" aria-hidden="true"></i>reused from the cache</li>
+          <li><i class="sw canon" aria-hidden="true"></i>re-read at handoff</li>
+          <li><i class="sw written" aria-hidden="true"></i>written this turn</li>
+        </ul>
+        <span class="live-ratio" id="live-ratio" hidden></span>
+        <div class="hud-controls">
+          <button type="button" class="btn tiny" id="live-pause" aria-pressed="false">Pause</button>
           <button type="button" class="btn tiny" id="live-replay">Replay</button>
         </div>
-        <figcaption id="live-caption" class="visually-hidden">The same four-turn session drawn to scale for both methods. Per-role LoRAs re-read the whole session at every turn and compute 5,599 tokens; RoleKV reuses the shared cache and computes 1,576, including the handoff re-reads. Token counts from bench/results/cost_sweep_4090.jsonl.</figcaption>
-      </figure>
-    </section>
-
-    <!-- ================= Problem ================= -->
-    <section class="section" id="problem">
-      <p class="kicker">The problem</p>
-      <h2>Every role switch <em class="warm">re-reads the whole session</em>.</h2>
-      <div class="two-col">
-        <p class="sub">The cheap way to build a multi-role agent is one small open model plus a LoRA per role. The roles share the base weights, but a standard LoRA changes the hidden states, and therefore the KV cache, of <b>every</b> token. The Coder's cache is useless to the Reviewer.</p>
-        <p class="sub">So at every switch the engine re-prefills the task, the repository file, the test output and all earlier turns. In an agent that shared context is long and grows every turn, while each role's own answer is short. Most of the compute before an answer goes into text the model has already read.</p>
       </div>
-    </section>
-
-    <!-- ================= How it works ================= -->
-    <section class="section" id="how">
-      <p class="kicker">How it works</p>
-      <h2>One cache. Each role switches on <em>only at its header</em>.</h2>
-      <div class="map-host" id="map-host"></div>
-      <ol class="steps">
-        <li class="step">
-          <span class="num mono">01</span>
-          <h3>Read once.</h3>
-          <p>Everything before a role header, the task, the repository file, the test output and the earlier turns, runs on base weights. That is why every role can share one KV cache.</p>
-        </li>
-        <li class="step">
-          <span class="num mono">02</span>
-          <h3>Activate at the header.</h3>
-          <p>An <b>Activated LoRA</b> is switched on only from its invocation sequence onward. Here that sequence is the role header <code class="mono">&lt;|role:coder|&gt;</code>, so a role's adapter touches its own turn and nothing before it.</p>
-        </li>
-        <li class="step">
-          <span class="num mono">03</span>
-          <h3>Hand off exactly.</h3>
-          <p>The previous role wrote its answer with its adapter on. RoleKV re-reads just that short answer with base weights (H1 canonicalization), <span id="canon-note">221 tokens per session</span> in our runs, so the cache stays exactly what each role was trained on.</p>
-        </li>
-      </ol>
-    </section>
-
-    <!-- ================= Numbers ================= -->
-    <section class="section" id="numbers">
-      <p class="kicker">Measured</p>
-      <h2><em><span id="ratio-lo">3.6</span>× to <span id="ratio-hi">3.9</span>× fewer tokens</em> computed per session, and the gap widens with context.</h2>
-      <p class="sub"><code class="mono">bench/cost_sweep.py</code> replays one fixed 4-turn session (buggy code → <span class="mono">REVISE</span> → fixed code → <span class="mono">APPROVE</span>) with each method at four shared-context sizes. Token counts depend only on the tokens, so they are exact on any machine: a MacBook and an RTX 4090 gave identical figures.</p>
-      <div class="tiles">
-        <div class="tile"><b id="tile-ratio">0×</b><span>fewer tokens computed at <span id="tile-ratio-ctx">8.1k</span> tokens of shared context</span></div>
-        <div class="tile"><b id="tile-canon">0</b><span>tokens: the whole cost of an exact handoff, per session, at every context size</span></div>
-        <div class="tile"><b id="tile-one">0</b><span>KV cache shared by every role, instead of a re-prefill at every switch</span></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-head">
-          <h3>Tokens computed per session, by shared context</h3>
-          <span class="chart-note">prefill + handoff re-read · lower is better</span>
-        </div>
-        <div class="chart" id="sweep-chart" role="img" aria-label="Tokens computed per session for per-role LoRAs and RoleKV at four shared-context sizes; the table below has the values."></div>
-        <details class="table">
-          <summary>Table</summary>
-          <div class="table-wrap"><table class="data" id="sweep-table"></table></div>
-        </details>
-      </div>
-      <p class="foot-note">Timings and pass rates are deliberately absent: the RTX 4090 timing sweep is being re-run with bf16 adapters, and the quality eval with trained adapters is pending. This page shows no number that is not in a logged run. Source: <code class="mono">bench/results/cost_sweep_4090.md</code>.</p>
-    </section>
-
-    <!-- ================= Methods ================= -->
-    <section class="section" id="methods">
-      <p class="kicker">What we compare</p>
-      <h2>Six ways to run two roles on one model.</h2>
-      <div class="table-wrap">
-        <table class="methods">
-          <thead><tr><th scope="col">Method</th><th scope="col">What it is</th><th scope="col">KV cache</th></tr></thead>
-          <tbody>
-            <tr><th scope="row">Base model<code>A0</code></th><td>Role prompts, no adapter. The quality floor.</td><td><span class="cache-tag shared">one cache</span></td></tr>
-            <tr><th scope="row">One shared LoRA<code>A1</code></th><td>Both roles through one adapter. Cheap, but no separate role adapters.</td><td><span class="cache-tag shared">one cache</span></td></tr>
-            <tr><th scope="row">Per-role LoRAs<code>A2</code></th><td>One standard LoRA per role, full re-prefill at every switch. The quality reference and the highest cost.</td><td><span class="cache-tag none">no sharing</span></td></tr>
-            <tr><th scope="row">Naive cache reuse<code>A3</code></th><td>Per-role LoRAs that reuse the other role's KV as is.</td><td><span class="cache-tag mismatch">shared, mismatched</span></td></tr>
-            <tr class="hero"><th scope="row">RoleKV<code>A5-H1</code></th><td>One Activated LoRA per role; the previous answer is re-read with base weights at each handoff.</td><td><span class="cache-tag shared">shared, exact</span></td></tr>
-            <tr><th scope="row">RoleKV, keep handoff KV<code>A5-H2</code></th><td>The same adapters, but the previous role's cache entries are kept as they are. Cheaper; differs from training.</td><td><span class="cache-tag shared">shared, approximate</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="foot-note">Model: Qwen2.5-Coder-1.5B-Instruct. Tasks: MBPP, each with a <code class="mono">utils.py</code> of other solutions as the shared repository file. A session is Coder → tests → Reviewer (<span class="mono">APPROVE</span> or <span class="mono">REVISE</span>, at most two rounds), scored on all asserts.</p>
-    </section>
-
-    <!-- ================= See it run ================= -->
-    <section class="section" id="run">
-      <p class="kicker">See it run</p>
-      <h2>Every number on the dashboard is computed in the browser from the event log.</h2>
-      <div class="cards">
-        <a class="card" href="dashboard.html">
-          <div class="mini replay" aria-hidden="true"><i class="r1"></i><i class="r2"></i></div>
-          <h3>Dashboard</h3>
-          <p>Session replay turn by turn, cost against pass rate for every method, and the context sweep. Drop in a <span class="mono">.jsonl</span> log and the page recomputes.</p>
-          <span class="go">Open the dashboard →</span>
-        </a>
-        <a class="card" href="dashboard.html?present">
-          <div class="mini stage" aria-hidden="true"><i></i></div>
-          <h3>Presentation stage</h3>
-          <p>One full-screen beat per part of the two-minute pitch. Arrow keys move between beats, R replays the current one.</p>
-          <span class="go">Start the stage →</span>
-        </a>
-        <a class="card" href="https://github.com/Yinghao-Guan/ai-hackathon-26" rel="noopener">
-          <div class="mini code mono" aria-hidden="true">rolekv/runtime.py</div>
-          <h3>Source</h3>
-          <p>Runtime, training, eval driver, cost sweep and this page. The event-log contract that everything shares is in <span class="mono">docs/CONTRACT.md</span>.</p>
-          <span class="go">GitHub ↗</span>
-        </a>
-      </div>
-    </section>
+      <p class="hud-note">Token counts from <span class="mono">bench/results/cost_sweep_4090</span>, identical on a MacBook. No timing or pass rate is shown until those runs land.</p>
+      <figcaption id="live-caption" class="visually-hidden">The same four-turn session for both methods, drawn to scale as tapes and as two slabs of KV-cache cells. Per-role LoRAs re-read the whole session at every turn and compute 5,599 tokens; RoleKV reuses the shared cache and computes 1,576, including the handoff re-reads.</figcaption>
+    </figure>
   </main>
-
-  <footer class="foot">
-    <div class="foot-inner">
-      <div class="foot-brand">
-        <svg class="mark" viewBox="0 0 40 16" aria-hidden="true"><rect x="0.75" y="2.75" width="38.5" height="10.5" rx="1.5" class="mark-paper"/><rect x="1.5" y="3.5" width="27" height="9" class="mark-cache"/><rect x="28.5" y="3.5" width="10" height="9" class="mark-ink"/></svg>
-        <span>RoleKV · LA Hacks 2026</span>
-      </div>
-      <p>Qwen2.5-Coder-1.5B-Instruct · Hugging Face PEFT 0.21.2 (aLoRA) · Greenewald et al., <em>Activated LoRA</em>, arXiv:2504.12397</p>
-      <p>Status: cost measured, quality pending. Results trace back to logged runs.</p>
-    </div>
-  </footer>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
 </body>

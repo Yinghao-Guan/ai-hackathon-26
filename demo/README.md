@@ -1,14 +1,21 @@
 # RoleKV demo
 
-A static site with no build step and no dependencies. Three surfaces:
+A static site with no build step. Three surfaces:
 
-- **Homepage** (`index.html`), for judges and visitors. The pitch on one dark page: a live replay of one measured
-  4-turn session (per-role LoRAs vs RoleKV, drawn to scale and lit as it is read), the session map that explains
-  the shared cache and the H1 handoff, the measured token counts from the cost sweep as tiles and a bar chart, the
-  methods compared, and links to the dashboard, the stage and the repository. It needs no event log: its numbers
-  are the token counts from `bench/results/cost_sweep_4090.{md,jsonl}`, copied into [`js/home.js`](js/home.js)
-  next to their source. It deliberately shows no timing (the 4090 TTFT sweep is being re-run) and no pass rate
-  (the eval is pending).
+- **Homepage** (`index.html`), for judges and visitors. One dark screen, no scrolling on a laptop. Behind the
+  words, the KV cache is drawn in three dimensions ([`js/cache3d.js`](js/cache3d.js), Three.js): two blocks of
+  cells side by side, pointing at the viewer. The face in front is a 14 × 14 map of the token positions
+  (8 tokens per cell, laid out row by row like a page, newest at the bottom), and behind it the model's 28
+  layers line up into the depth. They play one measured 4-turn session: the per-role LoRA block is emptied
+  and re-read at every turn by a coral cross-section that sweeps out of the depth towards the viewer; the
+  RoleKV block stays cyan and only its handoff cells (violet) and new tokens light up. Cells not yet in the
+  session are faint dots, so the block's final size is always visible. Drag to look around, hover a cell for
+  its tokens and layer. The HUD along the bottom shows the same session as the dashboard's 2D tapes with the
+  running token counts; both are driven from the same per-turn numbers, so they never disagree. Pause freezes
+  the replay mid-sweep. It needs no event log: its numbers are the token counts from
+  `bench/results/cost_sweep_4090.{md,jsonl}`, copied into [`js/home.js`](js/home.js) next to their source. It
+  deliberately shows no timing (the 4090 TTFT sweep is being re-run) and no pass rate (the eval is pending).
+  Without WebGL the page falls back to the HUD alone.
 - **Dashboard** (`dashboard.html`), for the team. It reads RoleKV event logs (JSONL,
   [CONTRACT.md §3](../docs/CONTRACT.md)) and opens with the result written as one sentence ("RoleKV re-read N%
   fewer tokens than per-role LoRAs"), followed by tokens per task, the number of paired tasks and both pass
@@ -34,8 +41,9 @@ A static site with no build step and no dependencies. Three surfaces:
 Every number on the dashboard and the stage is computed from whatever log is loaded; nothing there is
 hardcoded. The homepage is the one place with copied numbers, each next to its source.
 
-Charts are hand-written SVG and canvas, so the pages work without network access (only the Google Fonts
-request needs a connection, and it falls back to system fonts).
+The dashboard and the stage have no dependencies: charts are hand-written SVG. The homepage's 3D scene uses
+Three.js, vendored in [`vendor/three`](vendor/three/README.md) (MIT), so every page works without network
+access (only the Google Fonts request needs a connection, and it falls back to system fonts).
 
 ## Run it
 
@@ -127,11 +135,13 @@ has the same figures. When the sweep is re-run, update those constants from the 
 ## Files
 
 ```text
-index.html            the homepage
+index.html            the homepage: one screen, the 3D cache behind the words, the HUD along the bottom
 home.css              homepage styles: the same tape language on a dark stage
 dashboard.html        page shell for the dashboard and the presentation stage
 styles.css            the session-tape world: tokens, tape, dashboard and stage styles
-js/home.js            homepage: the live session replay, the session map, the sweep chart; copied numbers with sources
+js/home.js            homepage: the replay controller (HUD tapes + 3D in lockstep), copied numbers with sources
+js/cache3d.js         the KV cache in 3D: two instanced slabs of cells, the read wave, bloom, drag, hover
+vendor/three/         Three.js r186 (MIT), official build files only; see its README
 js/metrics.js         pure data functions (parse, validate, select, compute, tape geometry); no DOM
 js/data.js            event-log loading (?log=, real default, mock fallback, file picker)
 js/ui.js              DOM helpers, formatting, plain method names, tooltip

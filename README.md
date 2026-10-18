@@ -56,10 +56,11 @@ cd demo
 python -m http.server 8000     # open http://localhost:8000
 ```
 
-- **Homepage** (`index.html`): the pitch on one page. It replays one measured 4-turn session for per-role LoRAs
-  and RoleKV side by side, explains the shared cache and the handoff, shows the measured token counts from the
-  cost sweep, and lists the methods compared. Its numbers are copied from `bench/results/cost_sweep_4090.md`
-  into `demo/js/home.js` next to their source; it shows no timing or quality number until those runs land.
+- **Homepage** (`index.html`): the pitch on one screen. The KV cache is drawn in 3D (Three.js, vendored in
+  `demo/vendor/three`): two blocks of cells pointing at the viewer, a 14 × 14 map of the token positions in
+  front and 28 layers deep, replaying one measured 4-turn session for per-role LoRAs and RoleKV side by
+  side, with the same session as 2D tapes and running token counts in the HUD. Its numbers are copied from `bench/results/cost_sweep_4090.md` into `demo/js/home.js` next
+  to their source; it shows no timing or quality number until those runs land.
 - **Dashboard** (`dashboard.html`), which reads event logs:
   - **Session replay:** A2 vs A5-H1 on the same task, turn by turn: tokens recomputed, reused from cache, and
     canonicalized at handoff.

@@ -29,6 +29,11 @@
 - The homepage shows token counts only, copied from `bench/results/cost_sweep_4090.md` with the source next
   to each constant (`demo/js/home.js`). No TTFT and no pass rate until those runs land. When the sweep is
   re-run, update those constants.
+- The homepage is now a single screen with the KV cache rendered in 3D (`demo/js/cache3d.js`): two blocks of
+  cells side by side, pointing at the viewer (a 14 × 14 map of the token positions in front, 28 layers deep)
+  replaying the measured session; the 2D tapes stay in the HUD. This adds
+  **Three.js r186 (MIT), vendored** in `demo/vendor/three` (~2 MB, provenance in its README) so the demo still
+  works offline. The dashboard and the stage remain dependency-free.
 
 ### 2026-10-17: adapters run in bf16; the dashboard reads real logs; doc numbers filled
 
