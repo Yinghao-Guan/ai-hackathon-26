@@ -2,7 +2,9 @@
 
     uv run --no-sync python -m serve.openai_server --device mps --port 8765 --dump-dir tmp/serve_logs/dumps
 
-Endpoints: POST /v1/chat/completions (streaming or not) and GET /v1/models, on 127.0.0.1 only.
+Endpoints: POST /v1/chat/completions (streaming or not) and GET /v1/models, on 127.0.0.1 only. GET /panel
+is the stage panel (serve/panel.py): the latest dsh session of rolekv-reuse and of rolekv-noreuse side by
+side, reused vs recomputed prompt tokens per step and the server-measured TTFT, read from --log.
 
 The model id picks the KV policy:
 
@@ -48,11 +50,13 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import torch
 
 from rolekv import roles
 from rolekv.cache import KVSession
+from serve import panel
 
 MODELS = {"rolekv-reuse": True, "rolekv-noreuse": False}  # model id -> reuse the prompt KV
 CONTEXT_WINDOW = 32768  # Qwen2.5-Coder-1.5B-Instruct's max_position_embeddings
@@ -444,6 +448,11 @@ class Server(ThreadingHTTPServer):
         for p in (log_path.parent if log_path else None, dump_dir):
             if p:
                 p.mkdir(parents=True, exist_ok=True)
+        self.inflight: dict | None = None  # the request being computed, for the panel
+        self.panel_offset = self.log_size()  # the panel shows requests logged after this byte offset
+
+    def log_size(self) -> int:
+        return self.log_path.stat().st_size if self.log_path and self.log_path.exists() else 0
 
     def next_id(self) -> int:
         with self.counter_lock:
@@ -482,8 +491,32 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- routes
 
+    def _send_html(self, html: str) -> None:
+        body = html.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _panel_data(self, query: dict) -> dict:
+        srv = self.server
+        models = (query.get("models") or ["rolekv-reuse,rolekv-noreuse"])[0].split(",")
+        offset = 0 if query.get("all") else srv.panel_offset
+        inflight = srv.inflight
+        if inflight is not None:
+            inflight = {**inflight, "elapsed_s": time.time() - inflight["started"]}
+        return panel.panel_data(panel.read_log(srv.log_path, offset), models, inflight)
+
     def do_GET(self):
-        if self.path.rstrip("/") in ("/v1/models", "/models"):
+        url = urlsplit(self.path)
+        route = url.path.rstrip("/")
+        if route == "/panel":
+            self._send_html(panel.PANEL_HTML)
+        elif route == "/panel/data":
+            self._send_json(200, self._panel_data(parse_qs(url.query)))
+        elif self.path.rstrip("/") in ("/v1/models", "/models"):
             now = int(time.time())
             data = [{"id": m, "object": "model", "created": now, "owned_by": "rolekv", "context_length": CONTEXT_WINDOW}
                     for m in self.server.models]
@@ -494,6 +527,11 @@ class Handler(BaseHTTPRequestHandler):
             self._error(404, f"no route {self.path}")
 
     def do_POST(self):
+        if self.path.rstrip("/") == "/panel/reset":  # a new round: the panel forgets everything logged so far
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            self.server.panel_offset = self.server.log_size()
+            self._send_json(200, {"ok": True, "offset": self.server.panel_offset})
+            return
         if self.path.rstrip("/") not in ("/v1/chat/completions", "/chat/completions"):
             self._error(404, f"no route {self.path}")
             return
@@ -561,10 +599,16 @@ class Handler(BaseHTTPRequestHandler):
                         return False
                 return True
 
+        task = panel.task_of(messages)
         with backend.lock:
             waited_ms = (time.perf_counter() - received) * 1000
-            g = backend.generate(prompt_ids, reuse=spec.reuse, max_new_tokens=max_new, on_token=on_token,
-                                 adapter=f"alora_{spec.role}" if spec.role else None, alora_start=alora_start)
+            srv.inflight = {"model": model_id, "task": task, "messages": len(messages), "tools": len(tools or []),
+                            "prompt_tokens": len(prompt_ids), "started": time.time()}
+            try:
+                g = backend.generate(prompt_ids, reuse=spec.reuse, max_new_tokens=max_new, on_token=on_token,
+                                     adapter=f"alora_{spec.role}" if spec.role else None, alora_start=alora_start)
+            finally:
+                srv.inflight = None
         parsed = parse_reply(g.text, tool_names, lenient=srv.lenient)
         finish = "tool_calls" if parsed.calls else g.finish
         tool_calls = [{"id": f"call_{uuid.uuid4().hex[:24]}", "type": "function",
@@ -602,7 +646,7 @@ class Handler(BaseHTTPRequestHandler):
 
         record = {
             "request": rid, "time": time.strftime("%Y-%m-%dT%H:%M:%S"), "model": model_id, "role": spec.role,
-            "stream": stream,
+            "stream": stream, "task": task,
             "messages": len(messages), "tools": len(tools or []), "prompt_tokens": g.prompt_tokens,
             "head_tokens": head_tokens, "reused_tokens": g.reused_tokens, "computed_tokens": g.computed_tokens,
             "session": g.session, "ttft_ms": round(g.ttft_ms, 1), "decode_tokens": len(g.gen_ids),

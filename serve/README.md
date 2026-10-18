@@ -255,6 +255,41 @@ ROLEKV_PORT=8777 DSH_WEB_PORT=8790 serve/dsh/web.sh web       # prints http://12
 - **Behaviour.** In the browser the 1.5B does what it does headless: step 1 is right for "create X.py with a
   function", "use bash to run python3 --version" and "read X.py". Then it repeats a call until you press Stop.
 
+### Stage panel
+
+`http://127.0.0.1:<server port>/panel` is served by `serve/openai_server.py` itself: one page with HTML, CSS and
+JS inline, no CDN, so it works offline.
+
+- **Layout.** Two columns, `rolekv-reuse` on the left and `rolekv-noreuse` on the right. Each shows that model
+  id's latest dsh session.
+- **One bar per step.** Reused KV is blue, recomputed tokens are orange, and the server-measured TTFT sits on the
+  right. The step being computed shows as a striped bar with its running time.
+- **Totals.** On top of each column: reuse share, recomputed tokens, TTFT mean and median.
+- **Data.** The page polls `GET /panel/data` every 0.4 s. The data are the server's `--log` JSONL plus the request
+  in flight.
+- **New round.** The "New round" button (`POST /panel/reset`) hides everything logged so far. The panel also
+  starts empty when the server starts; `GET /panel/data?all=1` reads the whole log.
+- **Query parameters.** `?left=<model>&right=<model>` picks other model ids, for example the role ids;
+  `?rows=N` sets how many steps show (default 10).
+- **How a session is cut.** A dsh session is a model id's run of requests that carry tools. dsh's title request
+  has none, so it is never a step. A request starts a new session when its task (the first user message)
+  changes, or when it has no more messages than the previous one.
+
+Stage flow:
+1. Before the pitch, start the server and dsh web (commands above), and open the panel full screen on the
+   projector. Open dsh web on the laptop with the `rolekv` preset and "RoleKV, shared KV".
+2. Optional, to warm up: run one throwaway reuse session, then press New round. The server keeps dsh's
+   2.5k-token system prompt and tool schemas cached across sessions, so the reuse side's step 1 then takes about
+   0.2 s instead of about 2.7 s. Say so on stage: it is the same prefix cache.
+3. Send "Create is_prime.py with a function is_prime(n) that returns True for prime numbers." with
+   "shared KV". Let it run 3-5 steps; the model repeats itself after step 1. Then press Stop.
+4. Start a new session, pick "RoleKV, full prefill every request", send the same task, and stop after the same
+   number of steps.
+5. Point at the panel. Measured on the M4 with a cold cache:
+   - reuse: 80% reused, 3,086 recomputed tokens in 5 steps, TTFT 2.76 s on step 1, then 0.12-0.19 s;
+   - no reuse: 0% reused, 19,700 recomputed tokens in 6 steps, TTFT 2.63 s rising to 3.87 s.
+6. Press New round before the next take.
+
 ## RoleKV role adapters inside dsh
 
 ### What the server already does

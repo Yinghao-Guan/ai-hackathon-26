@@ -6,6 +6,7 @@ import pytest
 from conftest import assert_close, assert_matches, full_logits
 
 from rolekv import roles
+from serve import panel
 from serve.openai_server import (
     Backend,
     ContentStream,
@@ -346,3 +347,102 @@ def test_http_role_models_share_the_prefix(model, tokenizer):
         roles.invocation_tokens(tokenizer, "coder"))
     assert base["usage"]["prompt_tokens_details"]["cached_tokens"] == 0
     assert second["choices"][0]["message"] == base["choices"][0]["message"]
+
+
+# --- Stage panel ---------------------------------------------------------------------
+
+
+def rec(request: int, model: str, messages: int, prompt: int, reused: int, ttft: float, *, task="T", tools=7) -> dict:
+    return {"request": request, "model": model, "messages": messages, "tools": tools, "task": task,
+            "prompt_tokens": prompt, "reused_tokens": reused, "computed_tokens": prompt - reused, "ttft_ms": ttft,
+            "tool_calls": [{"name": "write", "known": True, "missing": []}]}
+
+
+LOG = [
+    rec(2, "rolekv-reuse", 2, 130, 0, 90.0, tools=0),  # dsh's title request: not a step
+    rec(1, "rolekv-reuse", 3, 2700, 3, 2600.0),
+    rec(3, "rolekv-reuse", 5, 2900, 2850, 120.0),
+    rec(4, "rolekv-noreuse", 3, 2700, 0, 2550.0),
+    rec(5, "rolekv-reuse", 7, 3100, 3020, 140.0),
+    rec(6, "rolekv-noreuse", 5, 2900, 0, 2780.0),
+    rec(8, "rolekv-reuse", 3, 2700, 2697, 50.0),  # the same task again in a new dsh session
+    rec(9, "rolekv-reuse", 5, 2900, 2850, 110.0, task="Another task"),  # a different task: another session
+]
+
+
+def test_task_of_takes_the_first_user_message():
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": [{"type": "text", "text": " fix it "}]},
+            {"role": "user", "content": "runtime context"}]
+    assert panel.task_of(msgs) == "fix it"
+    assert panel.task_of([{"role": "system", "content": "s"}]) == ""
+
+
+def test_dsh_sessions_skip_titles_and_split_on_new_conversations():
+    sessions = panel.dsh_sessions(LOG)
+    assert [[r["request"] for r in s] for s in sessions["rolekv-reuse"]] == [[1, 3, 5], [8], [9]]
+    assert [[r["request"] for r in s] for s in sessions["rolekv-noreuse"]] == [[4, 6]]
+
+
+def test_session_stats():
+    st = panel.session_stats(panel.dsh_sessions(LOG)["rolekv-reuse"][0])
+    assert (st["steps"], st["prompt"], st["reused"], st["computed"]) == (3, 8700, 5873, 2827)
+    assert st["reuse_share"] == pytest.approx(5873 / 8700)
+    assert st["ttft_mean_ms"] == pytest.approx((2600 + 120 + 140) / 3) and st["ttft_median_ms"] == 140
+    assert panel.session_stats([])["reuse_share"] is None
+
+
+def test_panel_data_shows_the_latest_session_per_model_and_the_running_step():
+    data = panel.panel_data(LOG[:6], ["rolekv-reuse", "rolekv-noreuse", "rolekv-coder"])
+    left, right, missing = data["columns"]
+    assert [s["step"] for s in left["steps"]] == [1, 2, 3] and left["steps"][1]["computed"] == 50
+    assert left["label"] == panel.LABELS["rolekv-reuse"] and left["task"] == "T"
+    assert right["stats"]["reuse_share"] == 0 and missing["steps"] == [] and data["max_prompt"] == 3100
+    running = {"model": "rolekv-noreuse", "task": "T", "messages": 7, "tools": 7, "prompt_tokens": 3100,
+               "elapsed_s": 1.5}
+    right = panel.panel_data(LOG[:6], ["rolekv-noreuse"], running)["columns"][0]
+    assert [s["running"] for s in right["steps"]] == [False, False, True]
+    assert right["stats"]["steps"] == 2 and right["steps"][-1]["elapsed_s"] == 1.5
+    title = {**running, "tools": 0}
+    assert len(panel.panel_data(LOG[:6], ["rolekv-noreuse"], title)["columns"][0]["steps"]) == 2
+
+
+def test_read_log_from_an_offset_skips_a_partial_line(tmp_path):
+    log = tmp_path / "requests.jsonl"
+    log.write_text(json.dumps(LOG[0]) + "\n")
+    offset = log.stat().st_size
+    with open(log, "a") as f:
+        f.write(json.dumps(LOG[1]) + "\n" + '{"request": 3, "mod')
+    assert [r["request"] for r in panel.read_log(log)] == [2, 1]
+    assert [r["request"] for r in panel.read_log(log, offset)] == [1]
+    assert panel.read_log(tmp_path / "missing.jsonl") == [] and panel.read_log(None) == []
+
+
+def get(url: str) -> tuple[int, str, bytes]:
+    with urllib.request.urlopen(url, timeout=60) as resp:
+        return resp.status, resp.headers.get("Content-Type", ""), resp.read()
+
+
+def test_http_panel_page_data_and_reset(model, tokenizer, tmp_path):
+    log = tmp_path / "requests.jsonl"
+    log.write_text(json.dumps(LOG[1]) + "\n")  # an earlier server's requests: not shown
+    srv = Server(("127.0.0.1", 0), Backend(model, tokenizer), max_new_tokens=2, quiet=True, log_path=log)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        status, kind, page = get(base + "/panel")
+        assert status == 200 and kind.startswith("text/html") and b"/panel/data" in page
+        empty = json.loads(get(base + "/panel/data")[2])
+        assert [c["steps"] for c in empty["columns"]] == [[], []]
+        msgs = conversation_messages(1)
+        for model_id in ("rolekv-reuse", "rolekv-noreuse"):
+            post(base + "/v1/chat/completions", {"model": model_id, "messages": msgs, "tools": TOOLS})
+        post(base + "/v1/chat/completions", {"model": "rolekv-reuse", "messages": msgs[:2]})  # no tools: not a step
+        left, right = json.loads(get(base + "/panel/data")[2])["columns"]
+        assert (left["model"], len(left["steps"]), right["model"], len(right["steps"])) == (
+            "rolekv-reuse", 1, "rolekv-noreuse", 1)
+        assert left["task"] == "Create is_prime.py and test it." and right["stats"]["reuse_share"] == 0
+        assert len(json.loads(get(base + "/panel/data?all=1")[2])["columns"][0]["steps"]) == 1  # LOG[1]'s session ends
+        assert post(base + "/panel/reset", {})[0] == 200
+        assert [c["steps"] for c in json.loads(get(base + "/panel/data")[2])["columns"]] == [[], []]
+    finally:
+        srv.shutdown()
