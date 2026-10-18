@@ -43,8 +43,7 @@
 
 > In the same four-turn session, RoleKV computed about four times fewer tokens than per-role LoRAs, at
 > every context size from one to eight thousand tokens. The first token after a role switch arrived in about
-> `[[A5-H1 TTFT]]` milliseconds whatever the context size. Per-role LoRAs went from `[[A2 TTFT at 1k]]` to
-> `[[A2 TTFT at 8k]]` milliseconds.
+> 50 milliseconds whatever the context size. Per-role LoRAs went from about 90 to almost 600 milliseconds.
 >
 > And quality: on `[[N]]` MBPP problems, with about 1,800 tokens of shared context, the pass rate was
 > `[[A5-H1 %]]` versus `[[A2 %]]`. `[[If the gap is >0: "That's a [[d]]-point drop we're still working on." If ≈0: "with no

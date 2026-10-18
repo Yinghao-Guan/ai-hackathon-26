@@ -10,7 +10,7 @@
 | Environment | Lead | Done | `uv sync` installs everything, pinned by `uv.lock` |
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
-| Cost sweep (`bench/cost_sweep.py`) | Lead | Done: Mac and 4090, after the decode fix | Results in `bench/results/` on `peter`; see Changes below |
+| Cost sweep (`bench/cost_sweep.py`) | Lead | Done: final 4090 numbers with bf16 adapters (`79e1f6a`) | Results in `bench/results/` on `peter`; see Changes below |
 | 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | Done; merged into `peter` | Reviewed by Lead; smoke-trained on the Mac with 0.5B; all gates pass |
 | Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
@@ -18,6 +18,22 @@
 | Demo | Member C → Lead | Dashboard merged (C done); real-data check pending | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-18: final 4090 cost numbers (bf16 adapters for every method)
+
+| Context | Tokens computed: A2 → A5-H1 | Switch TTFT: A2 → A5-H1 | GPU s / session: A2 → A5-H1 |
+|---|---|---|---|
+| 1k | 5,599 → 1,576 (3.6× less) | 94 → 50 ms (1.9×) | 6.56 → 6.84 s |
+| 2k | 9,595 → 2,575 (3.7× less) | 155 → 48 ms (3.2×) | 6.82 → 6.89 s |
+| 4k | 17,575 → 4,570 (3.8× less) | 279 → 47 ms (5.9×) | 7.19 → 7.01 s |
+| 8k | 33,651 → 8,589 (3.9× less) | 583 → 50 ms (11.7×) | 8.40 → 7.32 s |
+
+- **These replace every earlier 4090 timing.** They are now in `README.md`, `docs/PITCH.md` and
+  `docs/DEVPOST_DRAFT.md`. Source: `bench/results/cost_sweep_4090.*` on `peter`, commit `79e1f6a`.
+- **Decode:** A5-H1 decodes 8% slower per token (34.3 vs 31.7 ms). That is the Python overhead of PEFT's aLoRA
+  path, and it counts against us. Whole-session time is therefore 4% worse at 1k and 13% better at 8k.
+- **What to claim:** ~4× less prefill compute, and a flat ~50 ms switch TTFT against a linearly growing one.
+  Don't claim whole-session speedups at short contexts.
 
 ### 2026-10-17: training script merged into `peter`; ready to train on the 4090
 

@@ -72,7 +72,9 @@ Every headline number is computed in the browser from the loaded event logs; not
   - per-call hook registration that walks the whole model.
 
   We replaced them with an equivalent slice and persistent hooks, both checked against PEFT's own output.
-  Decoding is now within 1–4% of plain LoRA.
+  That brought decoding to within 1–4% of plain LoRA. Moving every adapter to bf16 (next point) then made
+  plain LoRA cheaper, so the Python overhead left in PEFT's aLoRA path shows as 8% slower decoding. That
+  overhead counts against RoleKV, not for it.
 - **A default that flattered us.** PEFT upcasts adapter weights to fp32. Plain LoRA applies its adapter to
   every token, so the upcast slowed it far more than aLoRA, which is active on the role header only: +39% vs
   +7% on a 4k-token prefill. We run every method's adapters in bf16. That made our latency ratios smaller,
@@ -83,8 +85,8 @@ Every headline number is computed in the browser from the loaded event logs; not
 ## Accomplishments that we're proud of
 
 - In a fixed 4-turn session, A5-H1 computes 3.6× fewer tokens than A2 at ~1k tokens of shared context and
-  3.9× fewer at ~8k. On the RTX 4090, its first token after a role switch arrives in `[[A5-H1 TTFT]]` ms at
-  every size, while A2's grows from `[[A2 1k]]` to `[[A2 8k]]` ms. Source: `bench/results/cost_sweep_4090.md`.
+  3.9× fewer at ~8k. On the RTX 4090, its first token after a role switch arrives in ~50 ms at every size,
+  while A2's grows from 94 to 583 ms: 1.9× to 11.7× faster. Source: `bench/results/cost_sweep_4090.md`.
 - `[[X.XX]]`× fewer prefill tokens per task for A5-H1 vs A2 in the eval (`[[YY.Y]]`% fewer, `[[N]]` paired MBPP
   tasks, ≈1.8k-token shared context). Source: `[[run_ids]]`.
 - Pass rate `[[A5-H1 %]]` vs `[[A2 %]]` for per-role LoRAs. `[[State the difference plainly; do not claim
@@ -102,7 +104,9 @@ Every headline number is computed in the browser from the loaded event logs; not
 - The savings come from the shared context, so they depend on how long it is relative to what each role
   writes. In a fixed 4-turn session, the token saving is 3.6× at ~1k
   tokens of shared context and 3.9× at ~8k. It approaches the number of turns, because per-role LoRAs re-read
-  the context once per turn. Switch latency diverges much faster: `[[TTFT summary]]`.
+  the context once per turn. Switch latency diverges much faster. A2's
+  grows linearly with the context (94 → 583 ms from 1k to 8k tokens), while A5-H1's stays at ~50 ms. Whole
+  sessions are dominated by decoding, so they gain less: from 4% slower at 1k to 13% faster at 8k.
 - `[[Measured finding about H1 vs H2 quality, if run.]]`
 - `[[Measured finding about aLoRA vs LoRA quality at our ranks.]]`
 
