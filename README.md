@@ -90,14 +90,20 @@ each method at four shared-context sizes.
 
 | Shared context | Tokens computed per session: A2 → A5-H1 | Switch TTFT: A2 → A5-H1 | GPU s per session: A2 → A5-H1 |
 |---|---|---|---|
-| 1.1k | 5,599 → 1,576 (3.6× fewer) | `[[4090 re-run]]` | `[[4090 re-run]]` |
-| 2.1k | 9,595 → 2,575 (3.7× fewer) | `[[4090 re-run]]` | `[[4090 re-run]]` |
-| 4.1k | 17,575 → 4,570 (3.8× fewer) | `[[4090 re-run]]` | `[[4090 re-run]]` |
-| 8.1k | 33,651 → 8,589 (3.9× fewer) | `[[4090 re-run]]` | `[[4090 re-run]]` |
+| 1.1k | 5,599 → 1,576 (3.6× fewer) | 94 → 50 ms (1.9×) | 6.56 → 6.84 s |
+| 2.1k | 9,595 → 2,575 (3.7× fewer) | 155 → 48 ms (3.2×) | 6.82 → 6.89 s |
+| 4.1k | 17,575 → 4,570 (3.8× fewer) | 279 → 47 ms (5.9×) | 7.19 → 7.01 s |
+| 8.1k | 33,651 → 8,589 (3.9× fewer) | 583 → 50 ms (11.7×) | 8.40 → 7.32 s (13% less) |
 
 - **Why the saving approaches the number of turns:** A2 re-reads the whole context on every turn, while A5-H1
   reads it once.
 - **The H1 handoff cost:** A5-H1's count includes 221 tokens of H1 handoff recompute per session.
+- **Switch TTFT:** A5-H1's stays at ~50 ms. A2's grows linearly, because it re-reads the context on every
+  switch.
+- **Whole-session time is mostly decoding** (~230 tokens per session), so it moves much less:
+  - 4% slower than A2 at 1k and 13% faster at 8k.
+  - A5-H1 decodes 8% slower per token (34.3 vs 31.7 ms). That is the Python overhead of PEFT's aLoRA code
+    path across 196 adapted layers, not extra compute, and it counts against RoleKV.
 - **What these numbers measure:** cost only. The turn texts are forced, so they say nothing about quality.
 - **Sources:** `bench/results/cost_sweep_4090.{jsonl,md}` and `bench/results/cost_sweep_mac.*`, on the
   `peter` branch.
