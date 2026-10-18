@@ -163,6 +163,9 @@ async function makeScene(layers) {
 
 function offline() {
   $("offline").classList.remove("connecting");
+  // A copy served elsewhere (the dashboard's static server, the homepage's Live link): point at the model
+  // server's own page, keeping ?task=…&ctx=….
+  $("server-link").href = `http://127.0.0.1:8001/live/${location.search}`;
   $("rig").textContent = "No model server";
   $("caption").textContent = "Waiting for the model server (demo/live/server.py).";
   $("task").replaceChildren(el("option", { text: "Start demo/live/server.py to pick a task" }));
