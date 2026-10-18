@@ -154,3 +154,57 @@ mock/mock_events.jsonl
 tests/metrics.test.mjs
 data/                 put the real events.jsonl here
 ```
+
+## Live demo
+
+`demo/live/` runs the comparison live instead of replaying logs: the same MBPP task on the same model, Per-role
+LoRA (A2) in the left column and RoleKV (A5-H1) in the right, with running totals on top (tokens computed and
+the ratio, switch time to first token, time on GPU, and an estimated cost). Each turn appears when it finishes,
+with its text, its counters and its session tape.
+
+- **Server:** `demo/live/server.py`, stdlib only (`http.server` and Server-Sent Events) on top of the locked
+  environment. It loads the model once with both methods' adapters and runs the two sessions interleaved turn
+  by turn (A2's turn, then A5-H1's), in one worker thread, never in parallel ([CONTRACT.md §6](../docs/CONTRACT.md)).
+  The protocol is `run_session`'s, and the tool output is `eval.testrun.run_mbpp_task` on all asserts, as in the
+  evals. One run at a time: a second tab gets "busy", and Stop or closing the page ends the run after the turn
+  in progress.
+- **Page:** `demo/live/index.html` with `live.js` and `live.css`; no build step. It reuses `../styles.css` and
+  the dashboard's tape code.
+- **Tasks:** any of the 100 eval tasks, or a custom task (a description plus one or more `assert` lines; the
+  first is shown to the model as the visible test). The context selector sets the utils.py size (30 functions
+  is the eval's ~2k tokens; 60 and 120 show the saving grow).
+- **Same transcript** (off by default): A2 replays RoleKV's generated tokens and test output, so both columns
+  are exactly the same conversation and every difference comes from the cache. Off, each column generates its
+  own replies with its own adapters, so the two sessions can differ in length.
+- **Cost** is time on GPU × a $/GPU-hour price you type in (default $0.50, an assumption, not a measured bill).
+
+**On the 4090 laptop** (WSL2, from the repo root, with the real adapters):
+
+```bash
+uv run python demo/live/server.py --model Qwen/Qwen2.5-Coder-1.5B-Instruct --adapters adapters/1.5b --device cuda
+```
+
+Then open http://localhost:8001/. The server listens on 127.0.0.1 only, because a custom task runs
+model-written code with your asserts on this machine. If Windows cannot reach it from WSL2, use `--host 0.0.0.0`
+on a trusted network only.
+
+**On the Mac, for development**, with throwaway 0.5B adapters (about 20 s each on the Mac GPU; they only check
+the plumbing, and the page labels them "smoke adapters"):
+
+```bash
+for spec in "coder alora sft_coder" "reviewer alora sft_reviewer" "coder lora sft_coder" "reviewer lora sft_reviewer"; do
+  set -- $spec
+  uv run python train/train_role_adapter.py --role $1 --kind $2 --model Qwen/Qwen2.5-Coder-0.5B-Instruct \
+    --data data/$3.jsonl --out tmp/live-adapters --max-steps 2 --grad-accum 1 --device mps
+done
+uv run python demo/live/server.py --model Qwen/Qwen2.5-Coder-0.5B-Instruct --adapters tmp/live-adapters
+```
+
+Other flags: `--device` (default mps if available, else cuda, else cpu), `--dtype bf16|fp16|fp32` (default
+fp32 on cpu, else bf16), `--port` (default 8001), `--ctx-funcs` (default 30), `--max-coder-tokens` and
+`--max-reviewer-tokens` (default 512 and 128, as in the evals). Startup loads MBPP and warms both methods up at
+every context size, so the first run is not slowed by one-time costs. URL parameters `?task=443&ctx=60&mirror=1&rate=0.5`
+preselect the controls.
+
+`tests/test_live_demo.py` drives the session runner (`compare_sessions`) without HTTP: event order, counters
+equal to the engine's, the same turns and token counts as `run_session`, the same-transcript mode, and stopping.
