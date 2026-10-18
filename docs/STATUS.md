@@ -11,13 +11,39 @@
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
 | Cost sweep (`bench/cost_sweep.py`) | Lead | Done: final 4090 numbers with bf16 adapters (`79e1f6a`) | Results in `bench/results/` on `peter`; see Changes below |
-| 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
+| 4090 machine | Lead | Adapters trained; full evals next | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | Done; merged into `peter` | Reviewed by Lead; smoke-trained on the Mac with 0.5B; all gates pass |
 | Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
 | Eval driver | Member B → Lead | Written; connected to the runtime; real-data dry run passes (B done) | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
 | Demo | Member C → Lead | Dashboard merged (C done); homepage added; real-data check pending | Homepage at `demo/index.html`, dashboard at `demo/dashboard.html`. Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-18: 1.5B adapters trained on the 4090; smoke eval passes
+
+All five adapters passed every training gate (records in `train/results/1.5b/` on `peter`, commit `00dc40e`):
+- 0 rows rejected, `reload_err` 0, aLoRA `pre_header_diff` 0.0;
+- model snapshot `2e1fd397`, the same as on the 4070 and the Mac;
+- ~56 min of training in total, peak ~8.5 GB.
+
+| Adapter | Rows / pass | Updates | Loss, first 10 → last 10 updates | Effect / noise |
+|---|---|---|---|---|
+| `alora_coder` | 338 | 85 | 0.38 → 0.16 | 13.3 / 0.25 |
+| `lora_coder` | 338 | 85 | 0.39 → 0.19 | 16.1 / 0.24 |
+| `alora_reviewer` | 396 (REVISE ×3) | 99 | 0.78 → 0.04 | 31.7 / 0.30 |
+| `lora_reviewer` | 396 (REVISE ×3) | 99 | 0.82 → 0.10 | 18.6 / 0.25 |
+| `lora_all` | 734 | 184 | 0.59 → 0.13 | 15.9 / 0.24 |
+
+**Smoke eval (5 tasks, 4090; a pipeline check, not a result).**
+- **A2:** 4/5 passed. **A5-H1:** 3/5 passed.
+- **Verdict format:** both trained Reviewers always answered `APPROVE` or `REVISE`, with no `INVALID`. The base
+  model was `INVALID` on 3/3.
+- **Watch in the full eval:** twice, the A5-H1 Reviewer approved failing code on the *second* review. The
+  training data never has a second review: trajectories end after the Coder's fix. So second-round reviews are
+  out of distribution for every method, and their verdicts need checking separately.
+
+**Next:** the full 100-task evals on the 4090 (A2 and A5-H1 first, then A5-H2, A3 and A1). A0 runs on the
+4070 under WSL2 or on the 4090. `peter`'s code stays frozen during the evals.
 
 ### 2026-10-18: demo homepage in 3D; the dashboard URL moved; `ui` and `report` merged into `main`
 
