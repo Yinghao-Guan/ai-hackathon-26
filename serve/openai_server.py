@@ -14,6 +14,11 @@ The model id picks the KV policy:
 Requests are rendered with the tokenizer's chat template (Qwen2.5 has a tool format), and Qwen's
 <tool_call>{json}</tool_call> blocks are parsed back into OpenAI `tool_calls`. Decoding is greedy.
 
+Earlier tool calls are rendered as the text the model generated for them (looked up by tool-call id),
+not re-rendered by the template: the model often writes a fenced JSON call instead of Qwen's tags, and a
+canonical re-rendering would differ from the cached tokens right after the assistant header.
+--canonical-history turns this off.
+
 Reuse keeps up to --max-sessions KVSessions. A request continues the session that shares the longest
 token prefix with its prompt: the cache is cropped to that prefix and only the rest is computed. When
 the shared part is under half of that session (a side request that only shares the system prompt and
@@ -33,7 +38,7 @@ import re
 import threading
 import time
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -59,15 +64,22 @@ def message_text(content) -> str:
     return "".join(part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text")
 
 
-def template_messages(messages: Sequence[dict]) -> list[dict]:
+def template_messages(messages: Sequence[dict], raw: Mapping[str, str] | None = None) -> list[dict]:
     """OpenAI chat messages in the shape Qwen's chat template expects.
 
     `developer` becomes `system`; tool-call arguments, a JSON string on the wire, become objects so the
-    template renders them as JSON rather than as a quoted string.
+    template renders them as JSON rather than as a quoted string. With `raw` (tool-call id -> the reply
+    text this server generated for it), an assistant message whose calls all came from one reply is
+    rendered as that text, so the history repeats the model's own tokens and their KV stays reusable.
     """
     out = []
     for m in messages:
         role = "system" if m.get("role") == "developer" else m.get("role")
+        ids = {call.get("id") for call in m.get("tool_calls") or []}
+        texts = {raw.get(i) for i in ids} if raw and ids else set()
+        if role == "assistant" and len(texts) == 1 and None not in texts:
+            out.append({"role": "assistant", "content": texts.pop()})
+            continue
         msg = {"role": role, "content": message_text(m.get("content"))}
         calls = []
         for call in m.get("tool_calls") or []:
@@ -87,9 +99,10 @@ def template_messages(messages: Sequence[dict]) -> list[dict]:
     return out
 
 
-def render(tokenizer, messages: Sequence[dict], tools: Sequence[dict] | None, *, generation_prompt: bool = True) -> list[int]:
+def render(tokenizer, messages: Sequence[dict], tools: Sequence[dict] | None, *, generation_prompt: bool = True,
+           raw: Mapping[str, str] | None = None) -> list[int]:
     text = tokenizer.apply_chat_template(
-        template_messages(messages), tools=list(tools) if tools else None,
+        template_messages(messages, raw), tools=list(tools) if tools else None,
         add_generation_prompt=generation_prompt, tokenize=False,
     )
     return tokenizer(text, add_special_tokens=False)["input_ids"]
@@ -361,8 +374,16 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address, backend: Backend, *, max_new_tokens: int = 1024, lenient: bool = True,
-                 log_path: Path | None = None, dump_dir: Path | None = None, quiet: bool = False):
+                 log_path: Path | None = None, dump_dir: Path | None = None, quiet: bool = False,
+                 raw_history: bool = True, raw_store: Path | None = None):
         super().__init__(address, Handler)
+        self.raw: dict[str, str] | None = {} if raw_history else None  # tool-call id -> generated reply text
+        self.raw_store = raw_store
+        if self.raw is not None and raw_store and raw_store.exists():
+            for line in raw_store.read_text().splitlines():
+                if line.strip():
+                    row = json.loads(line)
+                    self.raw[row["id"]] = row["text"]
         self.backend = backend
         self.max_new_tokens = max_new_tokens
         self.lenient = lenient
@@ -447,7 +468,7 @@ class Handler(BaseHTTPRequestHandler):
         if not messages:
             raise BadRequest("messages is empty")
         tool_names = [t.get("function", {}).get("name") for t in tools or []]
-        prompt_ids = render(backend.tokenizer, messages, tools)
+        prompt_ids = render(backend.tokenizer, messages, tools, raw=srv.raw)
         head_tokens = 0  # the system prompt and the tool schemas: the part every request of a session repeats
         if messages[0].get("role") in ("system", "developer"):
             head_tokens = len(render(backend.tokenizer, messages[:1], tools, generation_prompt=False))
@@ -491,6 +512,12 @@ class Handler(BaseHTTPRequestHandler):
         finish = "tool_calls" if parsed.calls else g.finish
         tool_calls = [{"id": f"call_{uuid.uuid4().hex[:24]}", "type": "function",
                        "function": {"name": c["name"], "arguments": c["arguments"]}} for c in parsed.calls]
+        if srv.raw is not None and tool_calls and not g.aborted:
+            rows = [{"id": call["id"], "text": g.text} for call in tool_calls]
+            srv.raw.update((row["id"], row["text"]) for row in rows)
+            if srv.raw_store:
+                with open(srv.raw_store, "a") as f:
+                    f.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
         usage = {"prompt_tokens": g.prompt_tokens, "completion_tokens": len(g.gen_ids),
                  "total_tokens": g.prompt_tokens + len(g.gen_ids),
                  "prompt_tokens_details": {"cached_tokens": g.reused_tokens}}
@@ -556,6 +583,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     p.add_argument("--strict", action="store_true", help="accept only <tool_call> blocks, not untagged JSON calls")
     p.add_argument("--log", type=Path, default=Path("tmp/serve_logs/requests.jsonl"))
     p.add_argument("--dump-dir", type=Path, default=None, help="keep every request and response body here")
+    p.add_argument("--canonical-history", action="store_true",
+                   help="render earlier tool calls with the chat template, not as the text the model generated")
+    p.add_argument("--raw-store", type=Path, default=None,
+                   help="append tool-call id -> generated text here, and load it at startup (for replays)")
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
 
@@ -563,7 +594,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     model, tokenizer = load_model(["A0"], base_model=args.model, device=args.device, dtype=dtype)
     backend = Backend(model, tokenizer, max_sessions=args.max_sessions, chunk=args.chunk)
     srv = Server(("127.0.0.1", args.port), backend, max_new_tokens=args.max_new_tokens, lenient=not args.strict,
-                 log_path=args.log, dump_dir=args.dump_dir, quiet=args.quiet)
+                 log_path=args.log, dump_dir=args.dump_dir, quiet=args.quiet,
+                 raw_history=not args.canonical_history, raw_store=args.raw_store)
     print(f"serving {args.model} on http://127.0.0.1:{srv.server_address[1]}/v1 as {', '.join(MODELS)}", flush=True)
     try:
         srv.serve_forever()

@@ -107,6 +107,20 @@ def test_rendered_tool_call_round_trips(tokenizer):
     assert rendered[: len(prompt) + len(generated)] == prompt + generated
 
 
+def test_raw_history_repeats_the_generated_text(tokenizer):
+    msgs = [SYSTEM, {"role": "user", "content": "list files"}]
+    prompt = render(tokenizer, msgs, TOOLS)
+    reply = '```json\n{"name": "bash", "arguments": {"command": "ls"}}\n```'
+    call = {"id": "c1", "type": "function", "function": parse_reply(reply, NAMES).calls[0]}
+    history = msgs + [{"role": "assistant", "content": None, "tool_calls": [call]},
+                      {"role": "tool", "tool_call_id": "c1", "content": "a.py"}]
+    generated = tokenizer(reply + "<|im_end|>", add_special_tokens=False)["input_ids"]
+    n = len(prompt) + len(generated)
+    assert render(tokenizer, history, TOOLS, raw={"c1": reply})[:n] == prompt + generated
+    assert render(tokenizer, history, TOOLS)[:n] != prompt + generated  # the template writes <tool_call> tags
+    assert render(tokenizer, history, TOOLS, raw={"other": reply}) == render(tokenizer, history, TOOLS)
+
+
 # --- Streaming ---------------------------------------------------------------------
 
 

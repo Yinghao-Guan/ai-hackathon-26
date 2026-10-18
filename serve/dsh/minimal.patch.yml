@@ -1,0 +1,48 @@
+# Optional overlay: shrink dsh's tool list to bash, read, write, edit, glob, grep (and read_image from dsh-tool-fs).
+#   dsh --profile headless --patch serve/dsh/minimal.patch.yml "task"
+# Goals, plan mode, jobs, subagents, skills, todos, web and workflows stay off.
+- id: goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
+- id: command-goal
+  disabled: true
+- id: tool-goal
+  disabled: true
+- id: plan-mode
+  disabled: true
+- id: tool-jobs
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: workflow-ptc
+  disabled: true
+- id: tool-skill
+  disabled: true
+- id: tool-todo
+  disabled: true
+- id: tool-web
+  disabled: true
+- id: web
+  disabled: true
+- id: web-search-deepseek
+  disabled: true
+- id: web-fetch-http
+  disabled: true
+- id: skill
+  disabled: true
+- id: skill-filesystem
+  disabled: true
+# Background bash needs the jobs tools.
+- id: tool-bash
+  config:
+    enableRunInBackground: false
+    promoteOnTimeout: false
