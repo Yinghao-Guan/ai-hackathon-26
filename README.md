@@ -3,8 +3,10 @@
 LA Hacks 2026 project. A multi-role coding agent (Coder + Reviewer) where every role is its own adapter on one
 small base model, and switching roles does not mean re-reading the whole context.
 
-> **Status:** in progress. The demo dashboard runs on mock data; experimental results are not in yet.
-> Every number in this repo that is a result will trace back to a logged run.
+> **Status:** results are in. All six methods ran on 100 MBPP eval tasks on the RTX 4090 (see
+> [Results](#results) and `eval/results/eval-1.5b-4090-202610180231.summary.md`). The dashboard loads the real
+> 4090 event log from `demo/data/events.jsonl`; a check of every view in a browser is not recorded yet.
+> Every number in this repo that is a result traces back to a logged run.
 
 ## The problem
 
@@ -60,7 +62,8 @@ python -m http.server 8000     # open http://localhost:8000
   `demo/vendor/three`): two blocks of cells pointing at the viewer, a 14 × 14 map of the token positions in
   front and 28 layers deep, replaying one measured 4-turn session for per-role LoRAs and RoleKV side by
   side, with the same session as 2D tapes and running token counts in the HUD. Its numbers are copied from `bench/results/cost_sweep_4090.md` into `demo/js/home.js` next
-  to their source; it shows no timing or quality number until those runs land.
+  to their source. It shows token counts only: the measured timings and pass rates (see Results) have not
+  been added to it.
 - **Dashboard** (`dashboard.html`), which reads event logs:
   - **Session replay:** A2 vs A5-H1 on the same task, turn by turn: tokens recomputed, reused from cache, and
     canonicalized at handoff.
@@ -68,8 +71,9 @@ python -m http.server 8000     # open http://localhost:8000
   - **Context sweep:** tokens saved per task as the shared context grows (≈1k / 2k / 4k / 8k).
 - **Presentation stage** (`dashboard.html?present`): one full-screen beat per part of the pitch, for the video.
 
-With no real log present, the dashboard shows a clearly labelled mock fixture. To load real results, put the
-eval log at `demo/data/events.jsonl`, or use **Load event log**, or drag a `.jsonl` file onto the page. Details,
+By default the dashboard loads `demo/data/events.jsonl`, the real 4090 log: the 100-task eval of all six
+methods plus the cost sweep. Only if no log is found does it show a clearly labelled mock fixture. To view
+another log, use `?log=<path>`, **Load event log**, or drag a `.jsonl` file onto the page. Details,
 metric definitions and the event-log assumptions are in [demo/README.md](demo/README.md).
 
 ## Metrics
@@ -78,7 +82,7 @@ metric definitions and the event-log assumptions are in [demo/README.md](demo/RE
 |---|---|
 | Prefill ratio (X×) | mean A2 `prefill_tokens_total` ÷ mean A5-H1 `prefill_tokens_total`, on task_ids both ran |
 | % fewer prefill tokens | 100 × (1 − A5-H1 mean / A2 mean) |
-| Pass rate | final code passes all MBPP asserts, over all tasks in the run (greedy, pass@1) |
+| Task success | final code passes all MBPP asserts after the agreed multi-turn loop (one greedy run; all-assert tool feedback, not standard held-out pass@1) |
 | Context sweep | the same comparison at each shared-context size, x = median `ctx_tokens` |
 
 `prefill_tokens_total` counts every token actually computed before decoding, **including** H1
@@ -112,15 +116,15 @@ each method at four shared-context sizes.
   - A5-H1 decodes 8% slower per token (34.3 vs 31.7 ms). That is the Python overhead of PEFT's aLoRA code
     path across 196 adapted layers, not extra compute, and it counts against RoleKV.
 - **What these numbers measure:** cost only. The turn texts are forced, so they say nothing about quality.
-- **Sources:** `bench/results/cost_sweep_4090.{jsonl,md}` and `bench/results/cost_sweep_mac.*`, on the
-  `peter` branch.
+- **Sources:** `bench/results/cost_sweep_4090.{jsonl,md}` and `bench/results/cost_sweep_mac.*` (4090 sweep:
+  commit `79e1f6a`).
 
 ### Quality and cost on 100 MBPP eval tasks (measured)
 
 Setup: one greedy run per method, all on the RTX 4090 (WSL2, 1.5B in bf16, adapters in bf16), ~1.8k tokens of
 shared context, the same 100 tasks for every method.
 
-| Method | pass@1 | Mean tokens computed / task | Median switch TTFT | Mean GPU s / task |
+| Method | Tasks passed / 100 | Mean tokens computed / task | Median switch TTFT | Mean GPU s / task |
 |---|---|---|---|---|
 | A0 base, no adapters | 51 | 2,038 | 20 ms | 4.29 |
 | A1 one LoRA for both roles | 61 | 2,060 | 35 ms | 5.29 |
@@ -134,15 +138,18 @@ shared context, the same 100 tasks for every method.
   recompute), on the same 100 tasks.
 - **Latency:** 3.1× faster switches (median TTFT).
 - **GPU time:** 23% less per task.
-- **Quality:** the same. Paired by task, both methods pass 51, only A2 passes 8, only A5-H1 passes 10.
+- **Quality:** 61/100 vs 59/100. Paired by task, both methods pass 51, only A2 passes 8, only A5-H1 passes 10.
+  The exact paired test gives p = 0.81; this sample does not establish equivalent quality.
+- **Session lengths differ:** A5-H1 often ends at its second review while A2 continues. The generated-session
+  cost and time differences include that behavior; the fixed-conversation sweep isolates cache savings more cleanly.
 
 How to read the other rows:
-- **All four adapter methods are within noise of each other** (59–62). One binomial standard error is about
-  5 points at n = 100.
+- **All five adapter methods pass 59–62 tasks.** A single 100-task run does not establish equivalence or
+  superiority between them.
 - **On this benchmark, mismatched KV reuse (A3) did not hurt quality, and one shared LoRA (A1) matched
   per-role adapters.**
-  - RoleKV's advantage over them is not quality here. It is that the sharing is *exact* by construction, so
-    there is nothing to validate per task or model.
+  - A5-H1 shows no task-success, computed-token or switch-TTFT advantage over A1 or A3 in this run.
+    H1 targets exact cache sharing with separate adapters; correctness still requires validation.
   - And each role keeps its own adapter, so roles can be trained and updated independently.
 - **A known weakness of aLoRA here: second reviews.**
   - The aLoRA Reviewers approved 41/45 (H1) and 39/45 (H2) of their second reviews, and 35 and 34 of those
@@ -152,8 +159,9 @@ How to read the other rows:
 - **A0 on the RTX 4070 (WSL2) passes 54, vs 51 on the 4090.** Greedy decoding in bf16 on another GPU shifts
   results by a few points, which is why every comparison here is on one machine.
 
-**Sources (branch `peter`):**
-- `eval/results/eval-1.5b-4090-202610180231.jsonl` and its `.summary.md` (eval commit `00dc40e`, adapters
+**Sources:**
+- [`eval/results/eval-1.5b-4090-202610180231.jsonl`](eval/results/eval-1.5b-4090-202610180231.jsonl) and its
+  [`.summary.md`](eval/results/eval-1.5b-4090-202610180231.summary.md) (eval commit `00dc40e`, adapters
   from `train/results/1.5b/`);
 - `eval/results/eval-1.5b-4070-202610180229.*` (A0 on the 4070, run by Member A).
 
@@ -163,7 +171,7 @@ How to read the other rows:
 - Eval set: 100 MBPP test-split problems, sampled with seed 0; training uses the train, validation and prompt splits.
 - Hardware: training and every reported eval on an RTX 4090 laptop GPU (16 GB) under WSL2; an extra A0 run on an RTX 4070 laptop GPU (WSL2).
 - Runs, configs and commits:
-  - eval: `eval/results/` on `peter` (eval commit `00dc40e`);
+  - eval: `eval/results/` (eval commit `00dc40e`);
   - training records: `train/results/1.5b/*/train_run.json`;
   - cost sweep: `bench/results/`.
 - GPU correctness gate: `RT_DEVICE=cuda uv run pytest -q` passed 60/60 in fp32 on the 4090 before the evals.
@@ -174,8 +182,9 @@ How to read the other rows:
 - Two roles only; a single run per method (greedy decoding), so pass-rate differences of a few points may be noise.
 - On MBPP with 1.5B, naive KV reuse (A3) and one shared LoRA (A1) were as good as per-role adapters, so the
   quality case for exact sharing is not shown here.
-- aLoRA Reviewers mostly approve on a second review, including failing code, because the SFT data has no
-  multi-round reviews. Fix: generate multi-round trajectories.
+- aLoRA Reviewers mostly approve on a second review, including failing code. The SFT data has no second
+  reviews, but that is not a demonstrated cause. A 12-case fp32 diagnostic matched an independent PEFT
+  reference; bf16 and other inputs remain outside that check. The team deferred training repair and froze v1.
 - Laptop GPUs; timings are noisy and only compared within one machine.
 - aLoRA reportedly needs a higher rank than LoRA for the same quality; the prior work targets short
   "intrinsic" outputs, while our roles generate whole functions.

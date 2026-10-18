@@ -9,39 +9,97 @@
 |---|---|---|---|
 | Environment | Lead | Done | `uv sync` installs everything, pinned by `uv.lock` |
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
-| Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
-| Cost sweep (`bench/cost_sweep.py`) | Lead | Done: final 4090 numbers with bf16 adapters (`79e1f6a`) | Results in `bench/results/` on `peter`; see Changes below |
-| 4090 machine | Lead | Adapters trained; full evals next | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
-| Training script | Member A | Done; merged into `peter` | Reviewed by Lead; smoke-trained on the Mac with 0.5B; all gates pass |
+| Runtime core | Lead | Done; GPU gate passed on the 4090 | `RT_DEVICE=cuda uv run pytest -q` (fp32) passed 60/60 before the evals (`eval/results/eval-1.5b-4090-202610180231.summary.md`). See Changes for the bf16 limitations and separate fp32 diagnostic |
+| Cost sweep (`bench/cost_sweep.py`) | Lead | Done: final 4090 numbers with bf16 adapters (`79e1f6a`) | Results in `bench/results/`; see Changes below |
+| 4090 machine | Lead | Adapters trained; all six methods evaluated on 100 tasks | All training and timing in WSL2. Results: `eval/results/eval-1.5b-4090-202610180231.summary.md`. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
+| Training script | Member A | Done; in `main` (merged via `peter`) | Reviewed by Lead; smoke-trained on the Mac with 0.5B; all gates pass. 1.5B run records: `train/results/1.5b/` |
 | Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
 | Eval driver | Member B → Lead | Written; connected to the runtime; real-data dry run passes (B done) | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
-| Demo | Member C → Lead | Dashboard merged (C done); homepage added; real-data check pending | Homepage at `demo/index.html`, dashboard at `demo/dashboard.html`. Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
+| Demo | Member C → Lead | Dashboard merged (C done); homepage added; real 4090 log committed; browser check of every view not recorded | Homepage at `demo/index.html`, dashboard at `demo/dashboard.html`. The dashboard loads `demo/data/events.jsonl` by default: the real 4090 log (`e36012c`: the six eval methods × 100 tasks plus the cost sweep). The mock fixture is only the fallback when no log is found. Counts compute as prefill + canon |
 
 ## Changes
+
+### 2026-10-18: freeze the evaluated v1; defer reviewer training repair
+
+- **Decision (Member A and Lead):** keep the existing data, adapters, runtime and measured results for the
+  presentation. No reviewer-repair training, new teacher generation or further GPU diagnostics are planned.
+- **Quality wording:** report final task success under the multi-turn, all-assert-feedback protocol, not
+  standard held-out pass@1. A5-H1 passes 61/100 versus A2's 59/100; equivalence is not established.
+- **Competing baselines:** A1 also passes 61/100 and A3 passes 62/100, with fewer computed tokens and lower
+  switch TTFT than A5-H1. Different generated histories and stopping behavior contribute to session costs.
+- **Reviewer caveat:** false approvals at the second review remain unresolved. The Stage 1 diagnostic
+  establishes agreement with an independent PEFT reference on 12 fp32 inputs only, not a proven training cause.
+- **Multi-round tooling:** implementation and offline checks are separate development work. They do not
+  change the evaluated v1 data or establish results for repaired adapters; no such adapters were trained.
+
+### 2026-10-18: Stage 1 diagnostic (fp32): the runtime agrees with an independent PEFT reference
+
+- **What ran:** Member A's Stage 1 r3 diagnostic, run by Lead on the 4090.
+  - WSL2, fp32, commit `5be44d7`, package `rolekv-stage1-r3-3434c4be`; every file matched SHA256SUMS.
+  - Runner exit 0, 688 s, peak 8,990 MiB.
+  - Setup changes were paths and environment only: a worktree made with WSL git, an absolute `--adapters`
+    path, the existing env. No script was changed.
+- **Cases:** 12 training-derived Reviewer cases, 4 tasks × 3 kinds:
+  - A: first review;
+  - B: second review of the same, still failing code;
+  - C: second review of fixed code, with a synthetic passing tool output.
+- **Verdict: AGREE.** Our runtime matched the reference at every decoding step:
+  - **A5-H1 (under test):** 12/12, 0 argmax mismatches, max logit error 3.6e-4 against per-step limits of
+    7e-3 to 1e-2. Adapter effect was 17–23.5, and all 20 positive controls (adapter off, wrong first header)
+    were detected.
+  - **A0, A1, A2 (negative controls):** 36/36, max error 2.3e-4.
+  - **A5-H2:** differs from the H1 reference on all 12 (max error 2.2–8.6, up to 8 argmax flips per case).
+    This is expected, because H2 keeps the previous role's adapter KV. It is descriptive only.
+- **What it means for the second-review caveat below:**
+  - In the B cases the H1 reference itself approves 2 of 4 (`t0008-B`, `t0519-B`); A1 and A2 revise all 4.
+  - So the eval's approve-on-second-review pattern reproduces without our cache code, in fp32.
+  - That is consistent with learned adapter behavior, but does not prove it: 12 inputs only, fp32 only (the
+    evals ran in bf16), and the reference is PEFT itself.
+- **Decision after this diagnostic:** Member A and Lead deferred training repair and froze the evaluated v1;
+  the measurements below are unchanged.
+- **Return package:** `diag-return-202610180959.tar.gz` (sha256 `3e1316fd…b81858`) is with Lead for Member A.
+  The `.pt` files (`p1` 2.2 GB, `p2` 4.3 GB) stay on the 4090.
+- **For Member A:** `run_reference.py` line 180 saves step slices without `.clone()`, so each
+  `p2/*.vectors.pt` holds the whole storage: 4.3 GB in total instead of a few MB. The results are unaffected.
+
+### 2026-10-18: all six methods evaluated; `peter` merged into `main`; real log in the dashboard
+
+- **Evals:** A5-H2, A3, A1 and A0 ran on the 4090 in the same run as A2 and A5-H1
+  (`eval-1.5b-4090-202610180231`, 100 tasks each). Tasks passed: A5-H2 60, A3 62, A1 61, A0 51 (4090).
+  - Full table, second-round review counts and wall times: `eval/results/eval-1.5b-4090-202610180231.summary.md`
+    (commits `b43e53e`, `77031f7`, `5be44d7`). The same numbers are in `README.md` › Results.
+  - GPU gate before the evals: `RT_DEVICE=cuda uv run pytest -q` (fp32) passed 60/60 (same summary).
+- **Branches:** `peter` was merged into `main` (`a5064e5`). Files that older entries list as "on `peter`" are
+  now on `main`. `main`'s SFT data already has the fixed system segment (see the `ui` merge entry below), so
+  the older "train only on `peter`" notes are history.
+- **Demo:** `demo/data/events.jsonl` is the real 4090 log (`e36012c`), and the dashboard loads it by default.
+  Two dashboard fixes came from it (`d89a15a`, `08dbfb1`). A check of every view in a browser is not recorded
+  here; that stays open.
 
 ### 2026-10-18: headline eval: A2 vs A5-H1 on 100 MBPP tasks (4090), plus A0
 
 | | A0 (base, 4070 WSL2) | A2 (per-role LoRA) | A5-H1 (RoleKV) |
 |---|---|---|---|
-| pass@1 | 54/100 | 59/100 | **61/100** |
+| final task success | 54/100 | 59/100 | **61/100** |
 | mean tokens computed / task | – | 7,013 | **2,197** (3.2× fewer; incl. 138 canon) |
 | median switch TTFT | – | 139 ms | **45 ms** |
 | mean GPU s / task | – | 5.56 | **4.29** |
 
 - **Quality:** paired on the same 100 tasks, both methods pass 51, only A2 passes 8, only A5-H1 passes 10, and
-  neither passes 31. The pass rates are statistically indistinguishable.
-- **Claim:** same quality at ~3× less prefill compute and ~3× faster role switches.
+  neither passes 31. The exact paired test gives p = 0.81; this sample does not establish equivalence.
+- **Claim:** observed task success of 61/100 versus 59/100, with ~3× fewer computed prefill tokens and
+  ~3× lower median switch TTFT relative to A2. See the freeze entry for competing baselines and limitations.
 - **Caveat to report: second-round reviews.**
   - The A5-H1 Reviewer approved 41 of its 45 second reviews, and 35 of those tasks' final code failed.
   - The A2 Reviewer revised 41 of its 43 second reviews and never approved failing code.
   - The SFT data has no second reviews, so this is out-of-distribution behavior, and the two adapter kinds
     react differently to it.
-  - Pass rates are unaffected because the final code is scored regardless. Next step: train on multi-round
-    reviews.
-- **Sources (on `peter`):**
+  - Final scoring is independent of the review verdict, but early approval removes a repair opportunity;
+    its counterfactual effect on A5-H1 is unknown. Training repair was considered and then deferred.
+- **Sources (on `peter` at the time; now on `main`):**
   - `eval/results/eval-1.5b-4090-202610180231.jsonl` (commit `7cba2b0`);
   - A0: `eval/results/eval-1.5b-4070-202610180229.*` (commit `034fd5f`, run by Member A, audited by Lead).
-- **Still pending:** A5-H2, A3 and A1 on the 4090.
+- **Still pending at the time:** A5-H2, A3 and A1 on the 4090. Done since; see the entry above.
 
 ### 2026-10-18: the 4 bf16 test failures are bf16 noise, not a runtime bug
 
