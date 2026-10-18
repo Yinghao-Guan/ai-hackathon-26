@@ -436,6 +436,22 @@ export function tapeScale(turns) {
   return Math.max(1, ...turns.map((t) => tapeSpans(t).end));
 }
 
+/** Spans of a session that has no turn yet: nothing in the cache, nothing read, nothing written. */
+export const EMPTY_SPANS = Object.freeze({ reused: [0, 0], canon: null, recomputed: [0, 0], written: [0, 0], end: 0 });
+
+/**
+ * What one cell of the 3D cache is on a turn (cache3d.js): a cell holds `bin` tokens and takes the category of
+ * its centre token. "written" from the end of the read on, "canon" inside the handoff re-read, "recomputed" in
+ * the rest of the read, "reused" before it.
+ */
+export function cellCategory(spans, cell, bin) {
+  const mid = cell * bin + bin / 2;
+  if (mid >= spans.recomputed[1]) return "written";
+  if (spans.canon && mid >= spans.canon[0] && mid < spans.canon[1]) return "canon";
+  if (mid >= spans.recomputed[0]) return "recomputed";
+  return "reused";
+}
+
 /** Task ids that have turn records in both runs (for the replay task picker). */
 export function replayTaskKeys(runA, runB) {
   if (!runA || !runB) return [];

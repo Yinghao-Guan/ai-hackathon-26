@@ -186,3 +186,18 @@ def test_run_requests(live):
                 {"custom": {"text": "x", "asserts": "print(1)"}}):
         with pytest.raises(ValueError):
             live.parse_run_request(bad, tasks, 30)
+
+
+def test_root_redirect_keeps_the_query(live):
+    assert live.live_location("") == "/live/"
+    assert live.live_location("task=454&ctx=120&mirror=1") == "/live/?task=454&ctx=120&mirror=1"
+
+
+def test_warm_run_leaves_no_trace_in_the_next_run(live, engines):
+    def turns():
+        events = live.compare_sessions(engines, TASK, segment(), max_new_tokens=LIMITS, run_tool=fixed_tool)
+        return [{k: e[k] for k in COUNTERS} for e in events if e["type"] == "turn"]
+
+    before = turns()
+    live.warm_run(engines, segment())
+    assert turns() == before
