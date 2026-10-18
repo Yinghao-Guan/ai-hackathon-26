@@ -7,13 +7,17 @@
 
 **Build** `rolekv/roles.py` first (push by T+1), then `rolekv/cache.py`, `rolekv/runtime.py`, `rolekv/costs.py`:
 
-- **`SharedSession`:** holds one `DynamicCache`, the token list and the cost counters.
+> **Status: done.** `uv run pytest` passes 28 tests on the Mac CPU. The design is described in the module
+> docstrings of `rolekv/cache.py` and `rolekv/runtime.py`; the API for the eval driver is CONTRACT.md §6.
+
+- **`KVSession`:** holds one `DynamicCache` and the session's token list.
 - **A5 turn:**
-  1. Base-prefill any pending tokens (task, tool output).
-  2. aLoRA-prefill the role header.
-  3. Decode.
-  4. Handoff. **H1:** `cache.crop(pre_header_len)`, then base-prefill header + body and count them as
-     `canon_tokens`. **H2:** keep the adapter KV.
+  1. One forward over the pending tokens (task, tool output) plus the role header; the aLoRA is active
+     only from the header on, so the rest is computed with base weights.
+  2. Decode.
+  3. Handoff. **H1:** at the start of the *next* turn, crop the cache back to this turn's header and
+     recompute header + body with base weights in that turn's forward (counted as its `canon_tokens`).
+     **H2:** keep the adapter KV.
 - **A2 turn:** start a new cache, prefill the whole history with that role's LoRA, then decode.
 - **A3:** one cache. Tokens are prefilled by whichever adapter is active when they arrive, and nothing is
   ever recomputed.
@@ -29,8 +33,8 @@
 **Done when** all four tests pass on the Mac CPU. Run them with 0.5B in fp32, with adapters created using
 `init_lora_weights=False` so they are non-zero:
 
-1. **Cache equivalence:** logits from a base-prefilled cache + an aLoRA tail equal one full aLoRA forward
-   (atol 1e-4).
+1. **Cache equivalence:** logits from a base-prefilled cache + an aLoRA tail equal one full aLoRA forward,
+   within fp32 noise (see `tests/conftest.py` for the measured tolerance).
 2. **Canonicalize:** after H1, the cache equals a base prefill of the full sequence from scratch.
 3. **Adapter on during decode:** decode-step logits differ from the base logits and match a full forward.
 4. **Cost accounting:** the counters on a hand-written toy session match hand-computed numbers.
