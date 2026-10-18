@@ -252,7 +252,14 @@ body.no-3d .scene-wrap { flex: 0 0 auto; min-height: 0; border: 0; }
   background: rgba(11, 14, 18, 0.72); border: 1px solid rgba(79, 220, 232, 0.5); box-shadow: 0 0 24px rgba(16, 160, 174, 0.25);
   animation: pop 500ms var(--ease-out) both;
 }
+.ratio b { font-weight: 800; }
 body.no-3d .ratio { position: static; display: inline-block; margin: 0 0 8px; }
+/* Below ~1600 px the panel is too narrow for the one-line pill next to the block labels: figure above, words
+   below, in the top-right corner the labels never reach. */
+@media (max-width: 1600px) {
+  .ratio { top: 10px; right: 10px; padding: 5px 11px 6px; font-size: 13px; font-weight: 700; line-height: 1.15; text-align: right; color: var(--ink-2); }
+  .ratio b { display: block; font-size: 25px; color: var(--ink); letter-spacing: -0.02em; }
+}
 .hud-row { display: grid; grid-template-columns: 168px minmax(0, 1fr) 150px; align-items: center; gap: 14px; padding: 5px 0; }
 .hud-row + .hud-row { border-top: 1px solid var(--rule); }
 .hud-label { font-weight: 800; font-size: 16px; line-height: 1.15; }
@@ -301,6 +308,38 @@ body.no-3d .ratio { position: static; display: inline-block; margin: 0 0 8px; }
   0% { box-shadow: 0 0 0 0 rgba(240, 89, 58, 0.6); }
   70% { box-shadow: 0 0 0 9px rgba(240, 89, 58, 0); }
   100% { box-shadow: 0 0 0 0 rgba(240, 89, 58, 0); }
+}
+
+/* ---------- Short screens (1366x768, 1280x720): the same one-screen stage, tighter ---------- */
+/* Without this the HUD ran 100-112 px past the bottom of a 1280x720 screen. The lanes' descriptions go (the
+   3D labels and the HUD rows say the same in short); the HUD keeps every number, smaller. */
+@media (min-width: 1101px) and (max-height: 860px) {
+  .nav { padding-top: 6px; padding-bottom: 2px; }
+  .controls { padding-bottom: 6px; }
+  .field select, .field input { min-height: 36px; padding-top: 5px; padding-bottom: 5px; }
+  .seg button { min-height: 34px; }
+  .btn { min-height: 38px; padding-top: 6px; padding-bottom: 6px; }
+  .check { min-height: 36px; }
+  .task-line { padding-bottom: 6px; }
+  .task-line .task-text { font-size: 17px; }
+  .task-line .task-meta { font-size: 13px; }
+  .lane-head { padding-bottom: 5px; }
+  .lane-head p { display: none; }
+  .scene-wrap { min-height: 170px; }
+  .hud { margin-top: 8px; padding: 6px 12px 6px; }
+  .hud-top { height: 22px; margin-bottom: 2px; }
+  .caption { font-size: 14px; }
+  .hud-row { grid-template-columns: 140px minmax(0, 1fr) 120px; gap: 10px; padding: 2px 0; }
+  .hud-label { font-size: 14px; }
+  .hud-tape { height: 22px; }
+  .hud-count b { font-size: clamp(20px, 2vw, 28px); }
+  .stats { margin-top: 3px; padding-top: 5px; }
+  .stat-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-vals b { font-size: clamp(17px, 1.45vw, 23px); }
+  .stat-cmp { font-size: 13px; min-height: 1.3em; }
+  .stat-cmp small { display: none; }
+  .hud-foot { margin-top: 4px; padding-top: 4px; }
+  .key { font-size: 11px; gap: 2px 10px; }
 }
 
 /* ---------- Smaller screens: the cache first, then the two sides; the page scrolls ---------- */

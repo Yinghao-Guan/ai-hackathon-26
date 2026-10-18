@@ -372,7 +372,12 @@ async function pump() {
       state.shown = r;
       const c = compare(state.run, r + 1);
       // Only after a role switch: on the first turn both read the same context.
-      if (c.tokens && c.n >= 2) { $("ratio").textContent = `${c.tokens.text} tokens computed`; $("ratio").hidden = false; }
+      if (c.tokens && c.n >= 2) {
+        // "<b>3.8×</b> fewer tokens computed": on a narrow panel the figure goes on its own line (live.css).
+        const [times, ...words] = c.tokens.text.split(" ");
+        $("ratio").replaceChildren(el("b", { text: times }), ` ${words.join(" ")} tokens computed`);
+        $("ratio").hidden = false;
+      }
     }
     if (alive() && state.run.ended && nextRound(state.run, state.shown) === null) finishBoards();
   } finally {
