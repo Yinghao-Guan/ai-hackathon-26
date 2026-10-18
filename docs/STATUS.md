@@ -19,6 +19,22 @@
 
 ## Changes
 
+### 2026-10-18: the 4 bf16 test failures are bf16 noise, not a runtime bug
+
+On the 4090, `RT_DEVICE=cuda RT_DTYPE=bf16 uv run pytest` fails 4 tests: T1 (both roles), T3 and T2. Lead
+reproduced the same 4 failures in bf16 on the Mac GPU and measured, against an fp32 reference (0.5B, the tests'
+random adapters):
+- **bf16 vs fp32, with no cache logic involved:** a plain bf16 full forward differs from fp32 by 13.45 in the
+  logits.
+- **Our runtime vs fp32:** the bf16 cached session differs from fp32 by 13.22, no worse than a plain bf16
+  forward.
+- **What the test compares:** two bf16 schedules, which differ from each other by 3.98. The test asks for
+  < 10% of the adapter's effect (26), so the criterion fails.
+
+The random adapters (`init_lora_weights=False`) make the model chaotic: bf16 and fp32 agree on only 46% of
+argmaxes. **The gate for the GPU is the fp32 run on CUDA** (`RT_DEVICE=cuda uv run pytest -q`). A better bf16
+criterion, comparing to an fp32 reference, is a later fix.
+
 ### 2026-10-18: 1.5B adapters trained on the 4090; smoke eval passes
 
 All five adapters passed every training gate (records in `train/results/1.5b/` on `peter`, commit `00dc40e`):
