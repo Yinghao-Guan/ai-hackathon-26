@@ -28,7 +28,7 @@ export async function start() {
 function dashboardHref() {
   const p = new URLSearchParams(location.search);
   p.delete("present");
-  return `./${p.size ? `?${p}` : ""}`;
+  return `dashboard.html${p.size ? `?${p}` : ""}`;
 }
 
 function render(stage, data) {

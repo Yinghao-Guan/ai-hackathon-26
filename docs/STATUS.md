@@ -15,9 +15,20 @@
 | Training script | Member A | | |
 | Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
 | Eval driver | Member B → Lead | Written; connected to the runtime; real-data dry run passes (B done) | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
-| Demo | Member C → Lead | Dashboard merged (C done); real-data check pending | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
+| Demo | Member C → Lead | Dashboard merged (C done); homepage added; real-data check pending | Homepage at `demo/index.html`, dashboard at `demo/dashboard.html`. Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: demo homepage; the dashboard URL moved
+
+- `demo/index.html` is now a homepage for judges (dark, animated: a replay of one measured 4-turn session,
+  the session map, the cost-sweep token counts, the methods compared). The dashboard moved to
+  **`demo/dashboard.html`**; `?present`, `?log=`, `?tab=` work as before on that URL, and the stage's exit
+  link and the dashboard's brand link were updated. Bookmarks and the recording checklist should use
+  `dashboard.html`.
+- The homepage shows token counts only, copied from `bench/results/cost_sweep_4090.md` with the source next
+  to each constant (`demo/js/home.js`). No TTFT and no pass rate until those runs land. When the sweep is
+  re-run, update those constants.
 
 ### 2026-10-17: adapters run in bf16; the dashboard reads real logs; doc numbers filled
 
