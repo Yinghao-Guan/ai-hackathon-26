@@ -11,6 +11,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import random
@@ -105,8 +106,8 @@ class UsageLedger:
     def __init__(self, *, model: str, cap_usd: float, max_calls: int | None, log_path: Path) -> None:
         if model not in PRICES_PER_MTOK:
             raise ValueError(f"no price recorded for {model!r}; add it to PRICES_PER_MTOK before a metered run")
-        if cap_usd <= 0 or (max_calls is not None and max_calls < 1):
-            raise ValueError("cap_usd must be positive and max_calls at least 1")
+        if not math.isfinite(cap_usd) or cap_usd <= 0 or (max_calls is not None and max_calls < 1):
+            raise ValueError("cap_usd must be finite and positive and max_calls at least 1")
         self.model = model
         self.input_price, self.output_price = (price / 1_000_000 for price in PRICES_PER_MTOK[model])
         self.cap_usd = cap_usd
@@ -689,10 +690,10 @@ def _check_generation_args(args: argparse.Namespace) -> None:
     if args.max_spend_usd is not None:
         if args.model not in PRICES_PER_MTOK:
             raise SystemExit(f"no price recorded for {args.model!r}; cannot enforce --max-spend-usd")
-        if args.max_spend_usd <= 0 or args.max_consecutive_api_errors < 1 or (
+        if not math.isfinite(args.max_spend_usd) or args.max_spend_usd <= 0 or args.max_consecutive_api_errors < 1 or (
             args.max_calls is not None and args.max_calls < 1
-        ) or (args.api_timeout is not None and args.api_timeout <= 0):
-            raise SystemExit("--max-spend-usd and --api-timeout must be positive, "
+        ) or (args.api_timeout is not None and (not math.isfinite(args.api_timeout) or args.api_timeout <= 0)):
+            raise SystemExit("--max-spend-usd and --api-timeout must be finite and positive, "
                              "--max-calls and --max-consecutive-api-errors at least 1")
         if (args.out / USAGE_LOG).exists():
             raise SystemExit(f"{args.out / USAGE_LOG} already exists; choose a new --out")

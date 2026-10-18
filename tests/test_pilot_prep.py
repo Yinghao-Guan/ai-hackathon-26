@@ -112,6 +112,22 @@ def test_guard_refuses_before_sending(tmp_path: Path) -> None:
     assert messages.calls == [] and (tmp_path / "api_usage.jsonl").read_text(encoding="utf-8") == ""
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_nonfinite_spend_cap_is_rejected(tmp_path: Path, value: float) -> None:
+    with pytest.raises(ValueError, match="finite and positive"):
+        ledger(tmp_path, cap=value)
+    assert not (tmp_path / "api_usage.jsonl").exists()
+
+
+@pytest.mark.parametrize("flag", ["--max-spend-usd", "--api-timeout"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_cli_rejects_nonfinite_spend_or_timeout(monkeypatch: pytest.MonkeyPatch, flag: str, value: str) -> None:
+    monkeypatch.setattr(bd, "Teacher", lambda **_: pytest.fail("invalid limits must not construct a teacher"))
+    monkeypatch.setattr(sys, "argv", ["build_dataset", "--multiround", "--max-spend-usd", "5", f"{flag}={value}"])
+    with pytest.raises(SystemExit, match="finite and positive"):
+        bd.main()
+
+
 def test_call_cap(tmp_path: Path) -> None:
     messages = FakeMessages()
     teacher = metered_teacher(tmp_path, messages, max_calls=2)

@@ -38,7 +38,9 @@ def test_trajectories_match_sft_files():
 def test_readme_hashes_match_files():
     readme = (DATA / "README.md").read_text(encoding="utf-8")
     for role in roles.ROLES:
-        assert hashlib.sha256((DATA / f"sft_{role}.jsonl").read_bytes()).hexdigest() in readme
+        # README records the committed LF bytes; Git may check them out as CRLF on Windows.
+        data = (DATA / f"sft_{role}.jsonl").read_bytes().replace(b"\r\n", b"\n")
+        assert hashlib.sha256(data).hexdigest() in readme
 
 
 def test_normalize_replaces_only_the_system_segment():
