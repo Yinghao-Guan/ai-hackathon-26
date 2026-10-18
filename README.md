@@ -124,7 +124,7 @@ each method at four shared-context sizes.
 Setup: one greedy run per method, all on the RTX 4090 (WSL2, 1.5B in bf16, adapters in bf16), ~1.8k tokens of
 shared context, the same 100 tasks for every method.
 
-| Method | Tasks passed / 100 | Mean tokens computed / task | Median switch TTFT | Mean GPU s / task |
+| Method | Final passes / 100 | Mean prefill tokens / task | Median switch TTFT | Mean model-turn s / task |
 |---|---|---|---|---|
 | A0 base, no adapters | 51 | 2,038 | 20 ms | 4.29 |
 | A1 one LoRA for both roles | 61 | 2,060 | 35 ms | 5.29 |
@@ -133,23 +133,24 @@ shared context, the same 100 tasks for every method.
 | **A5-H1 RoleKV (aLoRA, exact handoff)** | **61** | **2,197** | **45 ms** | **4.29** |
 | A5-H2 RoleKV, keep the previous role's KV | 60 | 2,059 | 44 ms | 4.40 |
 
+Final passes score the session's last code after up to two revisions, with full-suite tool feedback.
+Model-turn time sums logged turn durations; it excludes tools, final scoring, and loading.
+
 **A5-H1 vs A2:**
-- **Compute:** 3.2× fewer tokens computed per task (68.7% fewer, including 138 tokens of H1 handoff
+- **Prefill volume:** 3.2× fewer processed prefill tokens per task (68.7% fewer, including 138 tokens of H1 handoff
   recompute), on the same 100 tasks.
 - **Latency:** 3.1× faster switches (median TTFT).
-- **GPU time:** 23% less per task.
-- **Quality:** 61/100 vs 59/100. Paired by task, both methods pass 51, only A2 passes 8, only A5-H1 passes 10.
-  The exact paired test gives p = 0.81; this sample does not establish equivalent quality.
-- **Session lengths differ:** A5-H1 often ends at its second review while A2 continues. The generated-session
-  cost and time differences include that behavior; the fixed-conversation sweep isolates cache savings more cleanly.
+- **Model-turn time:** 23% less per task, with different generated trajectories and stopping decisions;
+  this is not an isolated cache speedup or a tool-inclusive wall-time result.
+- **Quality:** no detected paired success-rate difference. Both methods pass 51, only A2 passes 8,
+  only A5-H1 passes 10 (exact two-sided McNemar p = 0.815). This does not establish equivalence.
 
 How to read the other rows:
-- **All five adapter methods pass 59–62 tasks.** A single 100-task run does not establish equivalence or
-  superiority between them.
-- **On this benchmark, mismatched KV reuse (A3) did not hurt quality, and one shared LoRA (A1) matched
-  per-role adapters.**
-  - A5-H1 shows no task-success, computed-token or switch-TTFT advantage over A1 or A3 in this run.
-    H1 targets exact cache sharing with separate adapters; correctness still requires validation.
+- **The five adapter methods have similar observed pass counts** (59–62). One binomial standard error is about
+  5 points at n = 100.
+- **Mismatched KV reuse (A3) and one shared LoRA (A1) remain competitive on this benchmark.**
+  - H1 restores a base-model prefix for the incoming role, but this experiment does not demonstrate a
+    quality premium for that invariant. Numerical behavior at the deployed precision still requires validation.
   - And each role keeps its own adapter, so roles can be trained and updated independently.
 - **A known weakness of aLoRA here: second reviews.**
   - The aLoRA Reviewers approved 41/45 (H1) and 39/45 (H2) of their second reviews, and 35 and 34 of those

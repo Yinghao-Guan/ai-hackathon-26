@@ -23,15 +23,15 @@
 
 > Coding agents often split work into roles: one model writes code, another reviews it. A cheap way to build
 > that is one small model with a small adapter per role. The catch: an adapter changes how the model reads
-> *every* token. So each time the Coder hands over to the Reviewer, the model throws away its memory of the
+> *every* token. With full recomputation, each time the Coder hands over to the Reviewer, the model discards its cache of the
 > session, the task, the code and the test output, and reads it all again. Here, every bar is that re-read.
 
 **0:20 — Idea**
 
-> RoleKV trains each role as an *Activated* LoRA. It only switches on after its role header. Everything
+> RoleKV trains each role as an *Activated* LoRA. It switches on at its role header. Everything
 > before that is read with the plain base model, so both roles share one memory, one KV cache. At a handoff we
-> re-read just the previous role's short answer with base weights. We call that canonicalization, and it keeps
-> the cache exactly what each role was trained on.
+> re-read the previous role's header and short answer with base weights. We call that canonicalization;
+> it restores the base-model prefix expected by the incoming role.
 
 **0:45 — Demo**
 
@@ -44,18 +44,18 @@
 
 **1:20 — Results**
 
-> In the same four-turn session, RoleKV computed about four times fewer tokens than per-role LoRAs, at
+> In the same prescribed four-turn session, RoleKV processed about four times fewer prefill tokens than per-role LoRAs, at
 > every context size from one to eight thousand tokens. The first token after a role switch arrived in about
 > 50 milliseconds whatever the context size. Per-role LoRAs went from about 90 to almost 600 milliseconds.
 >
 > And quality: on 100 MBPP problems, with about 1,800 tokens of shared context, RoleKV passed 61, and
-> per-role LoRAs passed 59. That's no measurable drop, at a third of the prefill compute and three times faster
-> role switches.
+> per-role LoRAs passed 59. We didn't detect a pass-rate difference in this sample. RoleKV processed roughly
+> a third as many prefill tokens and delivered the first token after a switch three times faster.
 >
 > *(If a judge asks about the other baselines:)* One shared LoRA, or simply reusing the mismatched cache,
-> scored about the same here. What RoleKV adds is that the sharing is exact by construction, and every role
-> keeps its own adapter. Our honest weak spot: on a second review, the aLoRA Reviewer tends to approve, because
-> our training data never had a second review.
+> scored about the same here. RoleKV restores a base-aligned prefix while each role keeps its own adapter.
+> Our weak spot is second reviews: the aLoRA Reviewer often approves failing code. Our training data contains
+> no second reviews; testing whether multi-round training fixes this is next.
 
 **1:45 — Caveats**
 

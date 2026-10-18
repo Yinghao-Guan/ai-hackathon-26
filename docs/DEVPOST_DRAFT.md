@@ -17,10 +17,10 @@ role adapters.
 
 ## What it does
 
-RoleKV trains each role as an **Activated LoRA** (aLoRA): an adapter that only switches on after the role's
+RoleKV trains each role as an **Activated LoRA** (aLoRA): an adapter that switches on at the role's
 header. Everything before the header is processed with plain base weights, so the Coder and the Reviewer share
-one KV cache. A role switch only computes the new tokens. When a role hands off, we recompute its short output
-with base weights ("canonicalization", H1), which keeps the shared cache exactly what each role saw in training.
+one KV cache. At a role switch, H1 processes new tokens and recomputes the previous role's header and output
+with base weights ("canonicalization"), restoring the base-model prefix expected by the incoming role.
 
 We compare this against per-role standard LoRAs that re-prefill at every switch (A2), a naive cache-reuse
 baseline (A3), a single shared LoRA (A1), the base model (A0), and an aLoRA variant that skips
@@ -84,14 +84,15 @@ Every headline number is computed in the browser from the loaded event logs; not
 
 ## Accomplishments that we're proud of
 
-- In a fixed 4-turn session, A5-H1 computes 3.6× fewer tokens than A2 at ~1k tokens of shared context and
+- In a fixed 4-turn session, A5-H1 processes 3.6× fewer prefill tokens than A2 at ~1k tokens of shared context and
   3.9× fewer at ~8k. On the RTX 4090, its first token after a role switch arrives in ~50 ms at every size,
   while A2's grows from 94 to 583 ms: 1.9× to 11.7× faster. Source: `bench/results/cost_sweep_4090.md`.
 - In the eval, A5-H1 computes 3.2× fewer prefill tokens per task than A2: 2,197 vs 7,013, 68.7% fewer, on the
   same 100 MBPP tasks with ≈1.8k tokens of shared context. Its role switches are 3.1× faster (median TTFT 45 vs
   139 ms). Source: `eval/results/eval-1.5b-4090-202610180231.jsonl`.
-- Pass rate 61/100 for A5-H1 vs 59/100 for per-role LoRAs. Paired by task, only A2 passes 8 and only A5-H1
-  passes 10. That is no measurable difference.
+- Final session pass count is 61/100 for A5-H1 vs 59/100 for per-role LoRAs, after up to two revisions with
+  full-suite tool feedback. Only A2 passes 8 and only A5-H1 passes 10 (exact paired p = 0.815). No success-rate
+  difference is detected; quality equivalence is not established.
 - Every runtime correctness test passes on the Mac CPU in fp32: cache equivalence, handoff canonicalization,
   adapter on during decode, and cost accounting checked against an independent embedding-layer counter.
   On the RTX 4090 the same 60 tests pass in fp32 on CUDA.
@@ -108,14 +109,16 @@ Every headline number is computed in the browser from the loaded event logs; not
   the context once per turn. Switch latency diverges much faster. A2's
   grows linearly with the context (94 → 583 ms from 1k to 8k tokens), while A5-H1's stays at ~50 ms. Whole
   sessions are dominated by decoding, so they gain less: from 4% slower at 1k to 13% faster at 8k.
-- H1 vs H2: 61 vs 60 passes, a difference within noise. The H1 handoff costs 138 extra tokens per task.
-- aLoRA vs LoRA at our ranks (aLoRA r=32, LoRA r=16): pass rates are within noise (60–61 vs 59–62).
-- **Mismatched KV reuse (A3) and one shared LoRA (A1) also kept quality on MBPP.**
+- H1 vs H2: 61 vs 60 observed passes. H1 averages 138 canonicalization tokens per task; generated trajectories
+  also differ between the policies, so this is not a matched-trace overhead comparison.
+- aLoRA vs LoRA at our ranks (aLoRA r=32, LoRA r=16): observed pass counts are similar (60–61 vs 59–62),
+  without establishing equivalence or isolating adapter type from parameter count.
+- **Mismatched KV reuse (A3) and one shared LoRA (A1) remain competitive on MBPP.**
   - So the benefit of exact sharing over naive reuse doesn't show on this benchmark.
   - Exactness and per-role modularity are the argument, not a measured quality gap.
 - aLoRA Reviewers approve most second reviews, including failing code (35 of 100 tasks for H1). The LoRA
-  Reviewers don't. Our SFT data never contains a second review, so multi-round trajectories are the obvious
-  next fix.
+  Reviewers don't. Our SFT data never contains a second review; multi-round training is the next experiment
+  to test whether that coverage gap explains the failure.
 
 Hypotheses we did not test are under What's next.
 
