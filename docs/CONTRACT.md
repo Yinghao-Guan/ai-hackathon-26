@@ -35,7 +35,8 @@ Files: `data/sft_coder.jsonl` and `data/sft_reviewer.jsonl`, one JSON object per
  "target": "```python\ndef f(x):\n    ...\n```<|im_end|>\n"}
 ```
 
-- `segments`: the exact segment strings before the turn, in order. The last one is always the role HEADER.
+- `segments`: the exact segment strings before the turn, in order. The first one is always
+  `roles.system_segment()`, the same one the runtime uses. The last one is always the role HEADER.
 - `target`: the full BODY segment, including the trailing `<|im_end|>\n`. Loss is computed on these tokens
   only.
 

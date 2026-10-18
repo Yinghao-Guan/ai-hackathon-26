@@ -19,6 +19,24 @@
 
 ## Changes
 
+### 2026-10-17: SFT data now uses the runtime's system segment; REVISE oversampling is a training flag
+
+**System segment fix.** Member A noticed that every SFT row started with `You are a careful Python coding
+assistant.`, while the runtime starts every eval session with `roles.system_segment()`. Trained that way, the
+adapters would have seen a different context at eval than in training.
+- **Fixed on `peter` (commit `f43e5e0`), with no API spend.**
+  - `python -m train.build_dataset --reexport` rebuilt the SFT files from `data/trajectories.jsonl`.
+  - Only the system segment changed (checked row by row), and `data/README.md` has the new hashes.
+- `build_dataset.py` now always writes `roles.system_segment()`. `--system-prompt` reaches only the teacher.
+- `tests/test_data_contract.py` fails if the committed data ever drifts from the contract again.
+- **Train only on the data from `peter`.** The data on `main` still has the old system segment until `peter` is
+  merged.
+
+**REVISE oversampling (decision).** It is a training-script option: `--oversample-revise N`, default 1. With
+N > 1, each reviewer row whose target starts with `REVISE` is used N times. It applies to `--role reviewer` and
+to the reviewer rows of `--role all`. The 4090 runs use `--oversample-revise 3`. The data files stay as
+generated.
+
 ### 2026-10-17: Members B and C are done; Lead takes over what is left
 
 Members B and C have finished their tracks. Lead now owns everything still open in them:
