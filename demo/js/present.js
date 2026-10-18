@@ -1,7 +1,7 @@
 // The presentation stage (?present): one full-viewport beat per part of the 2-minute video.
 // Arrow keys, space and Page Up/Down move between beats; R replays the current beat. Every number is
 // computed from the loaded log, exactly as on the dashboard.
-import { featuredTask, replayTaskKeys, runFor, turnTotals } from "./metrics.js";
+import { featuredTask, replayTaskKeys, runFor, turnTotals, tapeScale as scaleOf } from "./metrics.js";
 import { loadDefault } from "./data.js";
 import { $, el, svg, fmtInt, ctxWords, plural, methodName, reducedMotion, announce } from "./ui.js";
 import { tapeEl, sweep, sessionMap } from "./tape.js";
@@ -148,7 +148,7 @@ function sequencer(blocks, turnsList, caption) {
 
 // ---------- Beats ----------
 function beatCost(t2) {
-  const tapeScale = Math.max(...t2.map((t) => t.reused_tokens + t.prefill_tokens + t.decode_tokens));
+  const tapeScale = scaleOf(t2);
   const block = tapeBlock("A2", t2, { tapeScale, ledgerScale: turnTotals(t2).compute });
   const caption = el("p", { class: "turn-caption", "aria-hidden": "true" });
   const node = beat("cost",
@@ -174,7 +174,7 @@ function beatIdea(t5, task) {
 
 function beatReplay(t2, t5) {
   const all = [...t2, ...t5];
-  const tapeScale = Math.max(...all.map((t) => t.reused_tokens + t.prefill_tokens + t.decode_tokens));
+  const tapeScale = scaleOf(all);
   const ledgerScale = Math.max(turnTotals(t2).compute, turnTotals(t5).compute);
   const b2 = tapeBlock("A2", t2, { tapeScale, ledgerScale });
   const b5 = tapeBlock("A5-H1", t5, { tapeScale, ledgerScale });

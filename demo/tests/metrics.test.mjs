@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   parseJSONL, isolateDataset, buildRuns, analyze, headline, pairTasks, passRate, sweepSeries,
   selectDefaultContextRuns, auditTask, ttftEligible, turnSegments, turnTotals, meanGpuSeconds,
-  tapeSpans, featuredTask, replayContextSizes, runFor, sweepSummary, isSweepRun,
+  tapeSpans, tapeScale, featuredTask, replayContextSizes, runFor, sweepSummary, isSweepRun,
 } from "../js/metrics.js";
 
 // ---------- toy fixture helpers ----------
@@ -276,6 +276,22 @@ test("tape spans place cache, the H1 re-read, prefill and written output end to 
   // Same session length as a method that re-reads everything: reused + canon + prefill is the input.
   assert.equal(tapeSpans(turn("a2-ctx3k", "A2", 1, 1, { prefill: 3431, decode: 19 })).end, s.end);
   assert.equal(tapeSpans(turn("a2-ctx3k", "A2", 1, 0, { prefill: 3212, decode: 93 })).canon, null);
+});
+
+test("the tape scale covers the H1 re-read, so no tape runs past its column", () => {
+  // Eval task 466 on the 4090 (eval-1.5b-4090-202610180231): RoleKV takes four turns and its last ends at
+  // 2,290 tokens. A scale without canon_tokens was 2,164, which drew that tape at 106% of its column.
+  const a2 = [turn("a2", "A2", 466, 0, { prefill: 1759, decode: 152 }), turn("a2", "A2", 466, 1, { prefill: 1936, decode: 4 })];
+  const a5 = [
+    turn("a5", "A5-H1", 466, 0, { prefill: 1759, decode: 104 }),
+    turn("a5", "A5-H1", 466, 1, { reused: 1749, canon: 113, prefill: 108, decode: 79 }),
+    turn("a5", "A5-H1", 466, 2, { reused: 1959, canon: 89, prefill: 12, decode: 117 }),
+    turn("a5", "A5-H1", 466, 3, { reused: 2050, canon: 126, prefill: 110, decode: 4 }),
+  ];
+  const scale = tapeScale([...a2, ...a5]);
+  assert.equal(scale, 2290);
+  for (const t of [...a2, ...a5]) assert.ok(tapeSpans(t).end <= scale);
+  assert.equal(tapeScale([]), 1);
 });
 
 test("the featured replay task prefers both methods passing, then the most turns", () => {

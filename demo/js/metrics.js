@@ -431,6 +431,11 @@ export function tapeSpans(turn) {
   };
 }
 
+/** The token count that fills a tape's full width when these turns are drawn on one scale: the longest end. */
+export function tapeScale(turns) {
+  return Math.max(1, ...turns.map((t) => tapeSpans(t).end));
+}
+
 /** Task ids that have turn records in both runs (for the replay task picker). */
 export function replayTaskKeys(runA, runB) {
   if (!runA || !runB) return [];

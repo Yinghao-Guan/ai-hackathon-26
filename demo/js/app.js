@@ -2,7 +2,7 @@
 // All numbers come from metrics.js; this file only renders them.
 import {
   METHOD_META, TIMING_MACHINE, replayTaskKeys, turnTotals, ttftEligible, featuredTask,
-  replayContextSizes, runFor, mean,
+  replayContextSizes, runFor, mean, tapeScale,
 } from "./metrics.js";
 import { loadDefault, readFile } from "./data.js";
 import {
@@ -256,7 +256,7 @@ function renderReplay() {
 }
 
 function turnGrid(turnsA2, turnsA5, count) {
-  const scale = Math.max(1, ...[...turnsA2, ...turnsA5].map((t) => t.reused_tokens + t.prefill_tokens + t.decode_tokens));
+  const scale = tapeScale([...turnsA2, ...turnsA5]);
   const grid = el("div", { class: "turns", id: "turn-grid" },
     el("div", { class: "colhead" }, el("span", { class: "visually-hidden", text: "Turn" })),
     el("div", { class: "colhead" }, el("span", { class: "visually-hidden", text: "Method" })),
