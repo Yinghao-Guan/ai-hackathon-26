@@ -12,12 +12,45 @@
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
 | Cost sweep (`bench/cost_sweep.py`) | Lead | Done: Mac and 4090, after the decode fix | Results in `bench/results/` on `peter`; see Changes below |
 | 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
-| Training script | Member A | | |
+| Training script | Member A | Done; merged into `peter` | Reviewed by Lead; smoke-trained on the Mac with 0.5B; all gates pass |
 | Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
 | Eval driver | Member B → Lead | Written; connected to the runtime; real-data dry run passes (B done) | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
 | Demo | Member C → Lead | Dashboard merged (C done); real-data check pending | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: training script merged into `peter`; ready to train on the 4090
+
+**Review.** Member A's `train/train_role_adapter.py` (branch `member-a/training-adapters`) matches the
+contract:
+- **Data:** it builds rows with `roles.tokenize_sft_example`, rejects any row whose system segment or role
+  header differs from `rolekv/roles.py`, and checks per row that PEFT activates the aLoRA exactly at the role
+  header.
+- **Output:** it saves `{out}/{kind}_{role}/`, the names the runtime expects.
+- **Oversampling:** `--oversample-revise N` is implemented as agreed.
+- **Gates after training:** the parameters changed; an aLoRA leaves the logits before its header unchanged;
+  the adapter reloads exactly.
+
+**Smoke test on the Mac (0.5B, 1–2 updates per adapter).**
+- **Training:** all 4 adapters for A2 and A5-H1 passed every gate. All 280 reviewer rows were used and none
+  were rejected. aLoRA `pre_header_diff` was 0.0 and `reload_err` was 0.
+- **Eval:** `eval/run_eval.py` with `rolekv.eval_runner:make_runner` loaded the adapters and ran 2 MBPP
+  tasks per method. Even after 1–2 updates, the trained Reviewer answers `APPROVE`/`REVISE` in format; the
+  base model's does not.
+
+**Train only on `peter`.** `main` still has the SFT data with the old system segment, and the script rejects
+those rows. Train on `peter`, which has the fixed data.
+
+**4090 training commands** (WSL2; one at a time; `adapters/` is gitignored):
+
+```bash
+M=Qwen/Qwen2.5-Coder-1.5B-Instruct; OUT=adapters/1.5b
+uv run python train/train_role_adapter.py --role coder    --kind alora --model $M --data data/sft_coder.jsonl --out $OUT
+uv run python train/train_role_adapter.py --role reviewer --kind alora --model $M --data data/sft_reviewer.jsonl --out $OUT --oversample-revise 3
+uv run python train/train_role_adapter.py --role coder    --kind lora  --model $M --data data/sft_coder.jsonl --out $OUT
+uv run python train/train_role_adapter.py --role reviewer --kind lora  --model $M --data data/sft_reviewer.jsonl --out $OUT --oversample-revise 3
+uv run python train/train_role_adapter.py --role all      --kind lora  --model $M --data data/sft_coder.jsonl data/sft_reviewer.jsonl --out $OUT --oversample-revise 3
+```
 
 ### 2026-10-17: adapters run in bf16; the dashboard reads real logs; doc numbers filled
 
