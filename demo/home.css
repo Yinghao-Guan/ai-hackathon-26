@@ -135,6 +135,11 @@ body.no-3d .scene-labels { display: none; }
 .lede { margin: 22px 0 0; max-width: 34em; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.5; color: var(--ink-2); }
 .lede b { color: var(--ink); font-weight: 700; }
 .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 26px; }
+.report-link {
+  display: inline-block; margin-top: 14px; font-size: 15px; font-weight: 600; color: var(--ink-2);
+  text-decoration: underline; text-decoration-color: rgba(255, 255, 255, 0.28); text-underline-offset: 4px;
+}
+.report-link:hover { color: var(--ink); text-decoration-color: currentColor; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; padding: 0; list-style: none; }
 .chip {
   display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-radius: 10px; max-width: 100%;
