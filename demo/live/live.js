@@ -150,7 +150,8 @@ async function makeScene(layers) {
       onHover: hoverTooltip(),
       view: { wide: VIEW, narrow: VIEW },
     });
-    if (new URLSearchParams(location.search).has("debug")) window.__rolekv = { scene: state.scene, state };
+    // ?debug: inspect the page, or replay recorded events through it (feed(type, event) after reset()).
+    if (new URLSearchParams(location.search).has("debug")) window.__rolekv = { scene: state.scene, state, reset: resetRun, feed: onEvent };
   } catch (err) {
     console.warn("3D scene unavailable; showing the tapes only.", err);
     document.body.classList.add("no-3d");

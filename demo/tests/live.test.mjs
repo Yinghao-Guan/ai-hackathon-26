@@ -145,8 +145,8 @@ test("playing a turn takes longer the more it computes, within bounds", () => {
 
 test("captions and formats", () => {
   const run = runWith(A2, A5);
-  assert.equal(readCaption(run, 1), "Turn 2 · the Reviewer reads before answering · tokens computed: Per-role LoRA 1,393 · RoleKV 176");
-  assert.equal(readCaption(runWith(A2.slice(0, 2), A5), 2), "Turn 3 · the Coder reads before answering · tokens computed: RoleKV 52");
+  assert.equal(readCaption(run, 1), "Turn 2 · the Reviewer reads · computed: Per-role LoRA 1,393 · RoleKV 176");
+  assert.equal(readCaption(runWith(A2.slice(0, 2), A5), 2), "Turn 3 · the Coder reads · computed: RoleKV 52");
   assert.equal(endWords({ end: "APPROVE", n_turns: 4, verdicts: ["REVISE", "APPROVE"] }), "The Reviewer approved after 4 turns.");
   assert.match(endWords({ end: "INVALID", n_turns: 2, verdicts: ["INVALID"] }), /neither APPROVE nor REVISE/);
   assert.equal(endWords({ end: "LAST_REVISION", n_turns: 5, verdicts: ["REVISE", "REVISE"] }), "Final revision after 2 REVISE verdicts (5 turns).");

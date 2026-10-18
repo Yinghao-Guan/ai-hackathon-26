@@ -79,6 +79,7 @@
           <span class="scene-label base" id="label-A2">Per-role LoRA<small>A2</small></span>
           <span class="scene-label hero" id="label-A5-H1">RoleKV<small>A5-H1</small></span>
         </div>
+        <span class="ratio" id="ratio" hidden></span>
         <!-- Shown until the model server answers, and kept when it never does (a static copy, or file://). -->
         <div class="offline" id="offline">
           <p class="offline-connecting">Connecting to the model server…</p>
@@ -98,7 +99,6 @@
       <figure class="hud" id="hud">
         <div class="hud-top">
           <span class="caption" id="caption" aria-live="polite">Pick a task and press Run both.</span>
-          <span class="ratio" id="ratio" hidden></span>
         </div>
         <div class="hud-row a2">
           <div class="hud-label">Per-role LoRA<small>A2 · re-reads every turn</small></div>

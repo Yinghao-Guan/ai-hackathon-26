@@ -162,5 +162,5 @@ export function readCaption(run, r) {
   const parts = METHODS.filter((m) => run.turns[m][r])
     .map((m) => `${NAME[m]} ${fmtInt(run.turns[m][r].prefill_tokens + run.turns[m][r].canon_tokens)}`);
   const role = (run.turns["A5-H1"][r] ?? run.turns["A2"][r]).role;
-  return `Turn ${r + 1} · the ${ROLE[role]} reads before answering · tokens computed: ${parts.join(" · ")}`;
+  return `Turn ${r + 1} · the ${ROLE[role]} reads · computed: ${parts.join(" · ")}`;
 }

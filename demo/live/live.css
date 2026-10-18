@@ -242,9 +242,17 @@ body.no-3d .scene-wrap { flex: 0 0 auto; min-height: 0; border: 0; }
   border: 1px solid var(--rule); background: rgba(13, 17, 23, 0.85);
   box-shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-.hud-top { display: flex; align-items: center; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin-bottom: 4px; min-height: 30px; }
-.caption { font-size: 15px; font-weight: 700; color: var(--ink); }
-.ratio { padding: 3px 12px; border-radius: 9px; font-size: clamp(16px, 1.3vw, 20px); font-weight: 800; color: var(--ink); background: var(--cache-soft); border: 1px solid rgba(79, 220, 232, 0.4); animation: pop 500ms var(--ease-out) both; }
+/* One line, fixed height: a HUD that changed height would resize (and clear) the 3D canvas above it. */
+.hud-top { display: flex; align-items: center; height: 26px; margin-bottom: 4px; }
+.caption { min-width: 0; font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The headline ratio sits on the 3D panel, next to the blocks it describes. */
+.ratio {
+  position: absolute; top: 14px; right: 14px; z-index: 1; pointer-events: none;
+  padding: 5px 14px; border-radius: 10px; font-size: clamp(18px, 1.6vw, 26px); font-weight: 800; color: var(--ink);
+  background: rgba(11, 14, 18, 0.72); border: 1px solid rgba(79, 220, 232, 0.5); box-shadow: 0 0 24px rgba(16, 160, 174, 0.25);
+  animation: pop 500ms var(--ease-out) both;
+}
+body.no-3d .ratio { position: static; display: inline-block; margin: 0 0 8px; }
 .hud-row { display: grid; grid-template-columns: 168px minmax(0, 1fr) 150px; align-items: center; gap: 14px; padding: 5px 0; }
 .hud-row + .hud-row { border-top: 1px solid var(--rule); }
 .hud-label { font-weight: 800; font-size: 16px; line-height: 1.15; }
@@ -301,6 +309,8 @@ body.no-3d .scene-wrap { flex: 0 0 auto; min-height: 0; border: 0; }
   .arena { flex: none; grid-template-rows: auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .center { grid-column: 1 / -1; grid-row: 1; }
   .scene-wrap { flex: 0 0 auto; min-height: max(260px, 46svh); }
+  .hud-top { height: auto; min-height: 26px; }
+  .caption { white-space: normal; }
   .lane-scroll { overflow: visible; }
 }
 @media (max-width: 700px) {

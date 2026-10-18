@@ -218,7 +218,8 @@ Other flags: `--device` (default mps if available, else cuda, else cpu), `--dtyp
 fp32 on cpu, else bf16), `--port` (default 8001), `--ctx-funcs` (default 30), `--max-coder-tokens` and
 `--max-reviewer-tokens` (default 512 and 128, as in the evals). Startup loads MBPP and warms both methods up at
 every context size, so the first run is not slowed by one-time costs. URL parameters `?task=443&ctx=60&mirror=1&rate=0.5`
-preselect the controls.
+preselect the controls. `?debug` exposes `window.__rolekv` (state, scene, `reset()`, `feed(type, event)`), to inspect the
+page or to play recorded server events through it.
 
 `tests/test_live_demo.py` drives the session runner (`compare_sessions`) without HTTP: event order, counters
 equal to the engine's, the same turns and token counts as `run_session`, the same-transcript mode, and stopping.
