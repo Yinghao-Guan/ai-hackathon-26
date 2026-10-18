@@ -164,6 +164,14 @@ with EventLog("runs/eval.jsonl") as log:
   - The order is Coder → tool output → Reviewer.
   - `APPROVE` ends the session, and so does an `INVALID` verdict.
   - After the 2nd `REVISE`, the next Coder turn is final, so a session has at most 5 turns.
+- **Comparable quality runs:** every eval whose pass rate is compared with another runs on Linux (the 4090's
+  WSL2, or WSL2 on another machine), on the same `peter` commit.
+  - Tool output contains the OS's temp path (`File "/tmp/rolekv-mbpp-…/solution_test.py"`), so native Windows
+    feeds the model different text.
+  - The training data has macOS paths. On Linux every method gets the same, small mismatch.
+  - Native Windows runs are pipeline checks only.
+- **Run ids:** `eval-1.5b-<machine>-<YYYYMMDDHHMM>`. The driver appends the method (`…-A0`). Report one final
+  run per method.
 - **One model, sessions run one after another:** adapter switching is global state, so never run sessions
   in parallel threads on one model.
 - If a forward raises, the engine's session is marked broken; log the task as failed and continue. The next

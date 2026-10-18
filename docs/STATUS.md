@@ -19,6 +19,27 @@
 
 ## Changes
 
+### 2026-10-18: eval protocol for the 100-task runs
+
+Member A checked the eval pipeline with a 3-task A0 pilot on the 4070, and Lead confirmed the inputs:
+- **Eval task ids:** 100 ids, first `[443, 208, 399]`, sha256 `f53d1618…b79c`. Identical on the 4070 and the Mac.
+- **MBPP:** revision `4bb6404f…`. **Qwen2.5-Coder-1.5B-Instruct:** snapshot `2e1fd397…`. The same on the 4070
+  and the Mac. The 4090's is recorded as `model_revision` in each adapter's `train_run.json`.
+- **Eval commit:** `peter` at `114918e`. It adds `canon_tokens_total` to the task rows and changes nothing that
+  the model sees, so the pilot at `89af6b9` is still valid.
+
+**Where each method runs.** Pass rates are compared only between runs on Linux (CONTRACT.md §6). Tool output
+contains the OS's temp path, and native Windows changes that text.
+
+| Method | Machine | Why |
+|---|---|---|
+| A2, A5-H1 | 4090, WSL2 | the headline comparison: quality and timing |
+| A1, A3, A5-H2 | 4090, WSL2 | they need the trained adapters, which live on the 4090 |
+| A0 | 4070 in WSL2 if that is quick to set up, otherwise the 4090 | it needs no adapters |
+
+**Run ids:** `eval-1.5b-<machine>-<YYYYMMDDHHMM>`, which the driver logs as `…-<method>`. The 4070 runs are
+labelled `machine` `4070`, and their timings are never compared.
+
 ### 2026-10-18: final 4090 cost numbers (bf16 adapters for every method)
 
 | Context | Tokens computed: A2 → A5-H1 | Switch TTFT: A2 → A5-H1 | GPU s / session: A2 → A5-H1 |
