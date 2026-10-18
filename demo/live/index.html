@@ -152,7 +152,8 @@
   <footer class="notes">
     <p><b>Tokens computed</b> = prefill + handoff re-read: every token run through the model outside decoding.
       <b>Time to first token after a switch</b> = mean over the turns after the first. <b>Time on GPU</b> = sum of turn
-      times, decoding included. Comparisons use the turns both sides have finished.
+      times, decoding included. Comparisons start at the first role switch and, once both sessions have ended,
+      cover both whole sessions, even when one took more turns.
       <b>Cost is an estimate</b>: time on GPU × the GPU price above, an assumption, not a measured bill.</p>
     <p id="rig-note"></p>
   </footer>

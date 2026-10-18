@@ -79,11 +79,15 @@ export function percentWord(a2, a5) {
 }
 
 /**
- * The comparisons on the page, over the turns both methods have finished (A2 runs first in each round, so
- * raw totals are briefly lopsided). `limit` caps the turns considered, e.g. to the turns already played.
+ * The comparisons on the page, over complete rounds: a round counts once each method has sent that turn or
+ * its session is over. Mid-round totals are not lopsided (A2 runs first in each round), and a method whose
+ * session ended early keeps its whole session, so at the end the comparisons cover both whole sessions, like
+ * the totals next to them. `limit` caps the rounds considered, e.g. to the rounds already played.
  */
 export function compare(run, limit = Infinity) {
-  const n = Math.min(run.turns["A2"].length, run.turns["A5-H1"].length, limit);
+  const has = (m, r) => run.turns[m].length > r || methodOver(run, m);
+  let n = 0;
+  while (n < limit && METHODS.some((m) => run.turns[m].length > n) && METHODS.every((m) => has(m, n))) n++;
   const a = totals(run.turns["A2"], n), b = totals(run.turns["A5-H1"], n);
   return {
     n, a2: a, a5: b,

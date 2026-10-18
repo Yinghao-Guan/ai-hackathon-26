@@ -66,20 +66,36 @@ test("totals count prefill + canon, average TTFT over role switches only, and su
   assert.equal(totals(A5, 1).ttft, null); // no switch yet
 });
 
-test("compare uses the turns both methods have finished", () => {
+test("compare counts complete rounds and, once a session is over, all of it", () => {
   const all = compare(runWith(A2, A5));
   assert.equal(all.n, 4);
   assert.equal(all.tokens.text, "3.6× fewer");
   assert.equal(all.tokens.kind, "win");
   assert.equal(all.ttft.text, "1.9× faster");
   assert.equal(all.gpu.text, "about the same");
-  // A2 runs first in each round: while RoleKV's turn 2 is computing, only turns 0-1 are compared.
+  // A2 runs first in each round: while RoleKV's turn 1 is computing, only round 0 is compared.
   const mid = compare(runWith(A2.slice(0, 2), A5.slice(0, 1)));
   assert.equal(mid.n, 1);
   assert.equal(mid.tokens.text, "1.0× fewer");
   assert.equal(mid.ttft, null);
   assert.equal(compare(runWith(A2, A5), 2).n, 2);
   assert.equal(compare(newRun()).tokens, null);
+  // RoleKV approved after 2 turns, A2 went on to 4 (the 120-function run on the 4090): before RoleKV's final
+  // arrives the rounds stay aligned; after it, A2's later turns count too, so the ratio matches the totals.
+  const shortA5 = runWith(A2.slice(0, 3), A5.slice(0, 2));
+  assert.equal(compare(shortA5).n, 2);
+  applyEvent(shortA5, "final", { method: "A5-H1" });
+  applyEvent(shortA5, "turn", A2[3]);
+  const whole = compare(shortA5);
+  assert.equal(whole.n, 4);
+  assert.equal(whole.a2.computed, 5599);
+  assert.equal(whole.a5.computed, 1227 + 87 + 89);
+  assert.equal(whole.tokens.text, "4.0× fewer");
+  assert.equal(compare(shortA5, 2).tokens.text, `${((1227 + 1393) / (1227 + 87 + 89)).toFixed(1)}× fewer`); // 2 rounds played
+  // The other way round: A2 approved after 2 turns, RoleKV took 4.
+  const shortA2 = runWith(A2.slice(0, 2), A5, (run) => applyEvent(run, "final", { method: "A2" }));
+  assert.equal(compare(shortA2).n, 4);
+  assert.equal(compare(shortA2).tokens.text, `${((1227 + 1393) / 1576).toFixed(1)}× fewer`);
 });
 
 test("words for ratios and percentages say which way they go", () => {

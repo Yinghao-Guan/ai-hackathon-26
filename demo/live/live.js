@@ -423,9 +423,12 @@ function renderStats() {
     $(`usd-${m}`).textContent = fmtUsd(perMillion(t.gpu, rate()));
   }
   const c = compare(run);
+  // Like the TTFT, the GPU and cost comparisons start at the first role switch: on turn 1 both sides do the
+  // same work, so any gap there is noise, not the cache.
+  const gpu = c.n >= 2 ? c.gpu : null;
   setCmp("ttft-cmp", c.ttft, c.ttft ? "after each switch" : c.n ? "from the first switch on" : "");
-  setCmp("gpu-cmp", c.gpu, c.gpu ? "prefill and decoding" : "");
-  setCmp("usd-cmp", c.gpu, c.gpu ? `at $${rate().toFixed(2)}/GPU-hour, assumed` : "");
+  setCmp("gpu-cmp", gpu, gpu ? "prefill and decoding" : c.n ? "from the first switch on" : "");
+  setCmp("usd-cmp", gpu, gpu ? `at $${rate().toFixed(2)}/GPU-hour, assumed` : "");
 }
 
 function renderStatus() {
