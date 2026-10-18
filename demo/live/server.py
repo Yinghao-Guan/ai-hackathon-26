@@ -251,6 +251,11 @@ def compare_sessions(
 # --- Requests -------------------------------------------------------------------------------------------
 
 
+def live_location(query: str) -> str:
+    """Where `/` sends the browser: the page, with the query (task, ctx, mirror, rate) kept."""
+    return f"/live/?{query}" if query else "/live/"
+
+
 def custom_task(text: str, asserts: str | Sequence[str]) -> dict:
     """An MBPP-shaped task from free text and one or more assert lines (blank lines are ignored)."""
     lines = asserts.splitlines() if isinstance(asserts, str) else list(asserts)
@@ -354,6 +359,7 @@ class Worker:
                 req = job.request
                 segment = build_task_segment(req["task"], self.training_rows, ctx_funcs=req["ctx_funcs"])
                 with self.lock:
+                    warm_run(self.engines, segment)  # untimed, before compare_sessions starts its clock
                     events = compare_sessions(self.engines, req["task"], segment,
                                               max_new_tokens=self.max_new_tokens,
                                               usd_per_gpu_hour=req["usd_per_gpu_hour"], mirror=req["mirror"],
@@ -407,10 +413,11 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self) -> None:
-        path = urlsplit(self.path).path
+        url = urlsplit(self.path)
+        path = url.path
         if path == "/":
             self.send_response(HTTPStatus.FOUND)
-            self.send_header("Location", "/live/")
+            self.send_header("Location", live_location(url.query))  # keep ?task=…&ctx=… for the page
             self.end_headers()
         elif path == "/api/info":
             self._json({**self.app.info, "busy": self.app.worker.busy})
@@ -523,6 +530,18 @@ def warm_up(engines: Mapping[str, Engine], segments: Sequence[str]) -> None:
             engine.turn("coder", max_new_tokens=2)
             engine.add_tool_output("warm-up")
             engine.turn("reviewer", max_new_tokens=2)
+
+
+def warm_run(engines: Mapping[str, Engine], segment: str) -> None:
+    """A 2-token Coder turn per engine on this run's own context, right before the run.
+
+    warm_up at startup is not enough: between runs the GPU idles and clocks down, so whichever method went
+    first in the next run paid for it (on the 4090: about 470 ms to its first token against 135 ms for the
+    same prefill one step later). Nothing here is timed or reported.
+    """
+    for engine in engines.values():
+        engine.start(segment)
+        engine.turn("coder", max_new_tokens=2)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
