@@ -307,6 +307,7 @@ def test_load_model_round_trip(model, tokenizer, tmp_path):
     ids = roles.tokenize_segments(tokenizer, context_segments("reviewer")) + turn_tail(tokenizer, "reviewer")
     for name in ("alora_coder", "alora_reviewer", "lora_coder", "lora_reviewer", "lora_all"):
         assert_close(full_logits(loaded, ids, name), full_logits(model, ids, name))
+    assert {p.dtype for n, p in loaded.named_parameters() if "lora_" in n} == {DTYPE}  # adapters in the model dtype
     del loaded
 
     config_path = tmp_path / "alora_coder" / "adapter_config.json"

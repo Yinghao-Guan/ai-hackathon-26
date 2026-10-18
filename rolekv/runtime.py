@@ -252,6 +252,18 @@ def warmup(engine: Engine) -> None:
     engine.turn("reviewer", max_new_tokens=2)
 
 
+def cast_adapters(model, dtype: torch.dtype) -> None:
+    """Keep adapter weights in the model's dtype for inference.
+
+    PEFT upcasts bf16 adapters to fp32 by default. Plain LoRA then runs fp32 matmuls on every token, which on
+    the Mac made a 4k-token prefill 39% slower than base instead of 16%, inflating A2's TTFT. aLoRA, adapted
+    on the header only, barely paid it. Serving stacks run adapters in the model dtype; so do we.
+    """
+    for name, param in model.named_parameters():
+        if "lora_" in name and param.dtype != dtype:
+            param.data = param.data.to(dtype)
+
+
 def load_model(
     methods: Iterable[str],
     *,
@@ -278,9 +290,11 @@ def load_model(
         if adapter_dir is None:
             raise ValueError(f"methods {sorted(methods)} need adapters {names}; pass adapter_dir")
         root = Path(adapter_dir)
-        model = PeftModel.from_pretrained(model, str(root / names[0]), adapter_name=names[0], is_trainable=False)
+        model = PeftModel.from_pretrained(model, str(root / names[0]), adapter_name=names[0], is_trainable=False,
+                                          autocast_adapter_dtype=False)
         for name in names[1:]:
-            model.load_adapter(str(root / name), adapter_name=name, is_trainable=False)
+            model.load_adapter(str(root / name), adapter_name=name, is_trainable=False, autocast_adapter_dtype=False)
+        cast_adapters(model, dtype)
         for name in names:
             tokens = list(getattr(model.peft_config[name], "alora_invocation_tokens", None) or [])
             if name.startswith("alora_"):

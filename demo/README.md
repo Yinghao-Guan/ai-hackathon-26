@@ -1,11 +1,25 @@
-# RoleKV demo dashboard
+# RoleKV demo
 
-A static page that reads RoleKV event logs (JSONL, [CONTRACT.md §3](../docs/CONTRACT.md)). It has two surfaces
-on the same data:
+A static site with no build step. Three surfaces:
 
-- **Dashboard** (default route), for the team. It opens with the result written as one sentence ("RoleKV
-  re-read N% fewer tokens than per-role LoRAs"), followed by tokens per task, the number of paired tasks and
-  both pass rates, so the saving never appears without its sample size and quality. Three tabs:
+- **Homepage** (`index.html`), for judges and visitors. One dark screen, no scrolling on a laptop. Behind the
+  words, the KV cache is drawn in three dimensions ([`js/cache3d.js`](js/cache3d.js), Three.js): two blocks of
+  cells side by side, pointing at the viewer. The face in front is a 14 × 14 map of the token positions
+  (8 tokens per cell, laid out row by row like a page, newest at the bottom), and behind it the model's 28
+  layers line up into the depth. They play one measured 4-turn session: the per-role LoRA block is emptied
+  and re-read at every turn by a coral cross-section that sweeps out of the depth towards the viewer; the
+  RoleKV block stays cyan and only its handoff cells (violet) and new tokens light up. Cells not yet in the
+  session are faint dots, so the block's final size is always visible. Drag to look around, hover a cell for
+  its tokens and layer. The HUD along the bottom shows the same session as the dashboard's 2D tapes with the
+  running token counts; both are driven from the same per-turn numbers, so they never disagree. Pause freezes
+  the replay mid-sweep. It needs no event log: its numbers are the token counts from
+  `bench/results/cost_sweep_4090.{md,jsonl}`, copied into [`js/home.js`](js/home.js) next to their source. It
+  deliberately shows no timing (the 4090 TTFT sweep is being re-run) and no pass rate (the eval is pending).
+  Without WebGL the page falls back to the HUD alone.
+- **Dashboard** (`dashboard.html`), for the team. It reads RoleKV event logs (JSONL,
+  [CONTRACT.md §3](../docs/CONTRACT.md)) and opens with the result written as one sentence ("RoleKV re-read N%
+  fewer tokens than per-role LoRAs"), followed by tokens per task, the number of paired tasks and both pass
+  rates, so the saving never appears without its sample size and quality. Three tabs:
   1. **Session replay**: A2 (per-role LoRAs) and A5-H1 (RoleKV) on the same task. Each turn is a *session tape*
      drawn to scale: paper is the session so far, coral ink is what the turn had to read again, the cyan rule
      is what it reused from the cache, the violet underline is the H1 handoff re-read, and the outline is what
@@ -13,20 +27,23 @@ on the same data:
      The default task is the one where both methods passed with the most turns. First-token time appears only
      for `machine == "4090"` rows.
   2. **Cost vs quality**: mean `prefill_tokens_total` per task against pass rate, one point per method, plus a
-     table. Only the main (~3k context) runs are used; sweep runs are excluded.
+     table. Only the main eval runs (~2k context, the eval's real size) are used; sweep runs are excluded.
   3. **Context sweep**: prefill tokens saved per task (A2 − A5-H1, paired by `task_id`) against the median
      `ctx_tokens` of each context size, headed by a sentence stating the range of the share saved.
 
-  Tab, task and context size are kept in the URL (`?tab=replay&task=86&ctx=3`).
-- **Presentation stage** (`?present`), for the video. One full-viewport beat per part of the pitch: the cost of
-  a role switch, how the shared cache works, the replay, cost vs quality, the sweep, the result, the end card.
-  Arrow keys / space / Page Up and Down move between beats, R replays the current beat, and the corner controls
-  fade when the pointer rests. The mock tag never hides. Add `&task=<id>` to choose the replay task.
+  Tab, task and context size are kept in the URL (`dashboard.html?tab=replay&task=86&ctx=3`).
+- **Presentation stage** (`dashboard.html?present`), for the video. One full-viewport beat per part of the
+  pitch: the cost of a role switch, how the shared cache works, the replay, cost vs quality, the sweep, the
+  result, the end card. Arrow keys / space / Page Up and Down move between beats, R replays the current beat,
+  and the corner controls fade when the pointer rests. The mock tag never hides. Add `&task=<id>` to choose the
+  replay task.
 
-Every number on both surfaces is computed from whatever log is loaded; nothing is hardcoded.
+Every number on the dashboard and the stage is computed from whatever log is loaded; nothing there is
+hardcoded. The homepage is the one place with copied numbers, each next to its source.
 
-No build step, no dependencies. Charts are hand-written SVG, so the page works without network access
-(only the Google Fonts request needs a connection, and it falls back to system fonts).
+The dashboard and the stage have no dependencies: charts are hand-written SVG. The homepage's 3D scene uses
+Three.js, vendored in [`vendor/three`](vendor/three/README.md) (MIT), so every page works without network
+access (only the Google Fonts request needs a connection, and it falls back to system fonts).
 
 ## Run it
 
@@ -35,13 +52,14 @@ cd demo
 python -m http.server 8000      # then open http://localhost:8000
 ```
 
-Serve the folder over HTTP. Opening `index.html` from `file://` will not load the ES modules.
+That opens the homepage; the dashboard is at `http://localhost:8000/dashboard.html`. Serve the folder over
+HTTP. Opening the pages from `file://` will not load the ES modules.
 
 ## Load data
 
-The page picks its data in this order:
+The dashboard picks its data in this order:
 
-1. `?log=<path>` in the URL, e.g. `http://localhost:8000/?log=data/a5h1-1.5b-ctx3k.jsonl`
+1. `?log=<path>` in the URL, e.g. `http://localhost:8000/dashboard.html?log=data/a5h1-1.5b-ctx3k.jsonl`
 2. `demo/data/events.jsonl`, if it exists (the real default, so the 404 for it in the console is expected
    until real logs arrive)
 3. `demo/mock/mock_events.jsonl`, the mock fixture, labelled "Mock data — not results"
@@ -90,7 +108,9 @@ All in [`js/metrics.js`](js/metrics.js), shared by the headline, table and chart
 | Sweep point | the same three numbers for the A2 and A5-H1 runs of one context size; x = median `ctx_tokens` |
 
 **Run selection.** A run is one `run_id`. Its context size comes from `ctxNk` in the `run_id` if present,
-otherwise from the median `ctx_tokens` rounded to 0.5k. The main comparison uses the ~3k runs; if several runs
+otherwise from the median `ctx_tokens` rounded to 0.5k. Runs whose `run_id` starts with `sweep-` are
+context-sweep replays (`bench/cost_sweep.py`): they feed the Context sweep tab and never the main comparison or
+pass rates. The main comparison uses the ~2k runs; if several runs
 of a method qualify, the one with the most tasks wins (then 4090, then name), and the page says which.
 
 **Accounting audit.** For every task, `prefill_tokens_total` must equal Σ over its turns of
@@ -98,25 +118,36 @@ of a method qualify, the one with the most tasks wins (then 4090, then name), an
 **Data validation**, and an "Accounting check failed" warning appears under the finding. If task totals demonstrably omit `canon_tokens`,
 a separately labelled turn-derived ratio is shown next to (never instead of) the logged one.
 
+**The homepage's numbers.** `js/home.js` holds the per-turn token counts of one sweep session (run
+`sweep-A2-ctx1k` / `sweep-A5-H1-ctx1k`, task `ctx1000-r0`) and the per-session totals at the four context
+sizes, copied from `bench/results/cost_sweep_4090.{jsonl,md}`. Token counts are deterministic, so the Mac run
+has the same figures. When the sweep is re-run, update those constants from the new results.
+
 ## Assumptions about the contract (confirm with Lead)
 
 - `prefill_tokens_total` includes `canon_tokens` (actual compute). The audit flags logs where it doesn't.
 - `ttft_ms`, `turn_ms`, `kv_mb`, `text`, `gpu_s`, `peak_kv_mb` may be `null`; every other field is required.
 - `task_id` may be an integer or a string; `machine` must be `4090`, `4070` or `mac`.
 - A `run_id` has exactly one method and one machine; conflicting lines are rejected.
-- `canon_tokens` on turn *i* is work done after turn *i*; the replay draws it on that turn's bar.
+- `canon_tokens` on turn *i* is the previous turn's header and output, re-read at the start of turn *i*
+  (CONTRACT §3); the replay draws it right after the cached prefix on turn *i*'s bar.
 
 ## Files
 
 ```text
-index.html            page shell for both surfaces
+index.html            the homepage: one screen, the 3D cache behind the words, the HUD along the bottom
+home.css              homepage styles: the same tape language on a dark stage
+dashboard.html        page shell for the dashboard and the presentation stage
 styles.css            the session-tape world: tokens, tape, dashboard and stage styles
+js/home.js            homepage: the replay controller (HUD tapes + 3D in lockstep), copied numbers with sources
+js/cache3d.js         the KV cache in 3D: two instanced slabs of cells, the read wave, bloom, drag, hover
+vendor/three/         Three.js r186 (MIT), official build files only; see its README
 js/metrics.js         pure data functions (parse, validate, select, compute, tape geometry); no DOM
 js/data.js            event-log loading (?log=, real default, mock fallback, file picker)
 js/ui.js              DOM helpers, formatting, plain method names, tooltip
 js/tape.js            the session tape and the session map
 js/charts.js          cost-vs-quality and context-sweep SVG charts
-js/app.js             entry point and dashboard rendering
+js/app.js             dashboard entry point and rendering
 js/present.js         the ?present stage
 mock/make_mock.py     deterministic mock generator
 mock/mock_events.jsonl

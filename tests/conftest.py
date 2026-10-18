@@ -78,9 +78,11 @@ def model(tokenizer):
     torch.manual_seed(0)
     base = AutoModelForCausalLM.from_pretrained(roles.DEV_MODEL, dtype=DTYPE, attn_implementation="sdpa").to(DEVICE)
     names = list(ADAPTERS)
-    peft_model = get_peft_model(base, adapter_config(tokenizer, ADAPTERS[names[0]]), adapter_name=names[0])
+    # Adapters in the model dtype, as load_model keeps them (matters only for the bf16 run on the 4090).
+    peft_model = get_peft_model(base, adapter_config(tokenizer, ADAPTERS[names[0]]), adapter_name=names[0],
+                                autocast_adapter_dtype=False)
     for name in names[1:]:
-        peft_model.add_adapter(name, adapter_config(tokenizer, ADAPTERS[name]))
+        peft_model.add_adapter(name, adapter_config(tokenizer, ADAPTERS[name]), autocast_adapter_dtype=False)
     peft_model.eval()
     return peft_model
 

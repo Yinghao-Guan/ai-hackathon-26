@@ -27,7 +27,8 @@ import torch
 
 from rolekv import roles
 from rolekv.costs import EventLog
-from rolekv.runtime import METHODS, ROLE_ADAPTERS, TARGET_MODULES, Engine, load_model, run_session, warmup
+from rolekv.runtime import (METHODS, ROLE_ADAPTERS, TARGET_MODULES, Engine, cast_adapters, load_model,
+                            run_session, warmup)
 
 TASK_TEXT = (
     "Write a function moving_average(values, window) that returns the list of averages "
@@ -105,7 +106,9 @@ def run_sweep(
             for method, engine in engines.items():
                 outputs = iter(tool_outputs)
                 result = run_session(engine, task, lambda code: next(outputs), forced_outputs=turns)
-                for record in result.records(run_id=f"{run_prefix}-{method}", machine=machine,
+                # One run_id per method and size, "sweep-A2-ctx4k": the dashboard reads the size from it
+                # and keeps sweep runs out of quality numbers. `passed` only means the replay completed.
+                for record in result.records(run_id=f"{run_prefix}-{method}-ctx{size / 1000:g}k", machine=machine,
                                              task_id=f"ctx{size}-r{rep}", passed=True):
                     log.write(record)
                     records.append(record)
@@ -194,9 +197,10 @@ def model_with_random_adapters(base_model: str, methods: Sequence[str], device, 
         return LoraConfig(r=rank, lora_alpha=2 * rank, target_modules=TARGET_MODULES, task_type="CAUSAL_LM",
                           alora_invocation_tokens=roles.invocation_tokens(tokenizer, role) if role else None)
 
-    model = get_peft_model(model, config(names[0]), adapter_name=names[0])
+    model = get_peft_model(model, config(names[0]), adapter_name=names[0], autocast_adapter_dtype=False)
     for name in names[1:]:
-        model.add_adapter(name, config(name))
+        model.add_adapter(name, config(name), autocast_adapter_dtype=False)
+    cast_adapters(model, dtype)  # adapters in the model dtype, as load_model does for trained ones
     return model.eval(), tokenizer
 
 

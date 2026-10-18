@@ -123,7 +123,10 @@ function renderFinding() {
     return;
   }
   const h = a.headline;
-  if (!h.ok) {
+  if (!h.ok && a.sweep.points.length) {
+    h1.className = "finding pending";
+    h1.textContent = "No evaluation runs loaded yet. The Context sweep tab shows what each method computes in a replayed conversation (costs only, no quality).";
+  } else if (!h.ok) {
     h1.className = "finding pending";
     h1.textContent = `The comparison needs per-role LoRA (A2) and RoleKV (A5-H1) runs on the same tasks: ${h.reason}.`;
   } else {
