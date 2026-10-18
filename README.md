@@ -115,29 +115,67 @@ each method at four shared-context sizes.
 - **Sources:** `bench/results/cost_sweep_4090.{jsonl,md}` and `bench/results/cost_sweep_mac.*`, on the
   `peter` branch.
 
-### Quality (pending)
+### Quality and cost on 100 MBPP eval tasks (measured)
 
-> _Pending the eval runs with trained adapters. Nothing below may be filled from mock data._
+Setup: one greedy run per method, all on the RTX 4090 (WSL2, 1.5B in bf16, adapters in bf16), ~1.8k tokens of
+shared context, the same 100 tasks for every method.
 
-| | A2 | A5-H1 |
-|---|---|---|
-| Pass rate (n tasks) | `TBD` | `TBD` |
-| Mean prefill tokens / task | `TBD` | `TBD` |
-| Prefill ratio | | `TBD` × (`TBD`% fewer, `TBD` paired tasks) |
+| Method | pass@1 | Mean tokens computed / task | Median switch TTFT | Mean GPU s / task |
+|---|---|---|---|---|
+| A0 base, no adapters | 51 | 2,038 | 20 ms | 4.29 |
+| A1 one LoRA for both roles | 61 | 2,060 | 35 ms | 5.29 |
+| **A2 one LoRA per role, full re-prefill** | **59** | **7,013** | **139 ms** | **5.56** |
+| A3 one LoRA per role, reuse mismatched KV | 62 | 2,061 | 41 ms | 5.54 |
+| **A5-H1 RoleKV (aLoRA, exact handoff)** | **61** | **2,197** | **45 ms** | **4.29** |
+| A5-H2 RoleKV, keep the previous role's KV | 60 | 2,059 | 44 ms | 4.40 |
 
-Source runs: `TBD` (run_id, machine, log path, commit).
+**A5-H1 vs A2:**
+- **Compute:** 3.2× fewer tokens computed per task (68.7% fewer, including 138 tokens of H1 handoff
+  recompute), on the same 100 tasks.
+- **Latency:** 3.1× faster switches (median TTFT).
+- **GPU time:** 23% less per task.
+- **Quality:** the same. Paired by task, both methods pass 51, only A2 passes 8, only A5-H1 passes 10.
+
+How to read the other rows:
+- **All four adapter methods are within noise of each other** (59–62). One binomial standard error is about
+  5 points at n = 100.
+- **On this benchmark, mismatched KV reuse (A3) did not hurt quality, and one shared LoRA (A1) matched
+  per-role adapters.**
+  - RoleKV's advantage over them is not quality here. It is that the sharing is *exact* by construction, so
+    there is nothing to validate per task or model.
+  - And each role keeps its own adapter, so roles can be trained and updated independently.
+- **A known weakness of aLoRA here: second reviews.**
+  - The aLoRA Reviewers approved 41/45 (H1) and 39/45 (H2) of their second reviews, and 35 and 34 of those
+    tasks' final code failed.
+  - The LoRA Reviewers (A1, A2, A3) mostly revised and never approved failing code in that round.
+  - The training data has no second reviews.
+- **A0 on the RTX 4070 (WSL2) passes 54, vs 51 on the 4090.** Greedy decoding in bf16 on another GPU shifts
+  results by a few points, which is why every comparison here is on one machine.
+
+**Sources (branch `peter`):**
+- `eval/results/eval-1.5b-4090-202610180231.jsonl` and its `.summary.md` (eval commit `00dc40e`, adapters
+  from `train/results/1.5b/`);
+- `eval/results/eval-1.5b-4070-202610180229.*` (A0 on the 4070, run by Member A).
 
 ## Reproducibility
 
 - Event-log schema: [docs/CONTRACT.md](docs/CONTRACT.md) §3. Plan and scope: [docs/PLAN.md](docs/PLAN.md).
 - Eval set: 100 MBPP test-split problems, sampled with seed 0; training uses the train, validation and prompt splits.
-- Hardware: training and timed evals on an RTX 4090 laptop GPU (16 GB); untimed evals on an RTX 4070 laptop GPU.
-- Runs, configs and commits: `TBD` when the eval logs land.
+- Hardware: training and every reported eval on an RTX 4090 laptop GPU (16 GB) under WSL2; an extra A0 run on an RTX 4070 laptop GPU (WSL2).
+- Runs, configs and commits:
+  - eval: `eval/results/` on `peter` (eval commit `00dc40e`);
+  - training records: `train/results/1.5b/*/train_run.json`;
+  - cost sweep: `bench/results/`.
+- GPU correctness gate: `RT_DEVICE=cuda uv run pytest -q` passed 60/60 in fp32 on the 4090 before the evals.
 
 ## Limitations
 
 - One small model (1.5B) and function-level tasks (MBPP), not repository-level agents.
 - Two roles only; a single run per method (greedy decoding), so pass-rate differences of a few points may be noise.
+- On MBPP with 1.5B, naive KV reuse (A3) and one shared LoRA (A1) were as good as per-role adapters, so the
+  quality case for exact sharing is not shown here.
+- aLoRA Reviewers mostly approve on a second review, including failing code, because the SFT data has no
+  multi-round reviews. Fix: generate multi-round trajectories.
 - Laptop GPUs; timings are noisy and only compared within one machine.
 - aLoRA reportedly needs a higher rank than LoRA for the same quality; the prior work targets short
   "intrinsic" outputs, while our roles generate whole functions.
