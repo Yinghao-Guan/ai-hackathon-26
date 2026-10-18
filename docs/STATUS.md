@@ -11,13 +11,33 @@
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
 | Cost sweep (`bench/cost_sweep.py`) | Lead | Done on Mac; 4090 run pending | Results in `bench/results/`; see Changes below |
-| 4090 machine | Lead | In progress | [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
+| 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | | |
 | Data | Member B | 280 trajectories in `data/` | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
 | Eval driver | Member B | Written; connected to the runtime | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
 | Demo | Member C | Dashboard merged (PR #1) | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: 4090 is ready; train and time it in WSL2
+
+The 4090 laptop (RTX 4090 Laptop GPU, 16 GB) has the locked environment both on Windows and in WSL2. Measured
+with 1.5B in bf16:
+
+| | Windows | WSL2 |
+|---|---|---|
+| Prefill 8k tokens | 478 ms | 443 ms |
+| Decode at 8k context | 47 tok/s | 66 tok/s |
+| Training step, 3,072 tokens: LoRA / aLoRA (r=32) | 0.89 / 1.11 s | 0.82 / 1.05 s |
+| 4,096-token step | fits | fits (10.6 GiB allocated) |
+
+- **Decision: all training and timed evals on the 4090 run in WSL2.** WSL2 is faster everywhere and has the
+  flash attention kernel. Never mix Windows and WSL2 timings. The `machine` label stays `4090`.
+- **No GPU rental needed.** The step times above, applied to our data (338 coder and 280 reviewer rows,
+  median ~1.9k tokens), put all five adapters at roughly 1 hour of training. This is an estimate; the real
+  runs will show.
+- **Member A:** aLoRA training steps are ~25% slower than LoRA. The cause is the same boolean-mask issue that
+  `rolekv/fast_alora.py` fixes for inference. It is not worth fixing before the first training run.
 
 ### 2026-10-17: data checked, eval driver connected to the runtime
 
