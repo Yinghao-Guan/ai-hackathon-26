@@ -32,6 +32,36 @@
 - **Multi-round tooling:** implementation and offline checks are separate development work. They do not
   change the evaluated v1 data or establish results for repaired adapters; no such adapters were trained.
 
+### 2026-10-18: Stage 1 diagnostic (fp32): the runtime agrees with an independent PEFT reference
+
+- **What ran:** Member A's Stage 1 r3 diagnostic, run by Lead on the 4090.
+  - WSL2, fp32, commit `5be44d7`, package `rolekv-stage1-r3-3434c4be`; every file matched SHA256SUMS.
+  - Runner exit 0, 688 s, peak 8,990 MiB.
+  - Setup changes were paths and environment only: a worktree made with WSL git, an absolute `--adapters`
+    path, the existing env. No script was changed.
+- **Cases:** 12 training-derived Reviewer cases, 4 tasks × 3 kinds:
+  - A: first review;
+  - B: second review of the same, still failing code;
+  - C: second review of fixed code, with a synthetic passing tool output.
+- **Verdict: AGREE.** Our runtime matched the reference at every decoding step:
+  - **A5-H1 (under test):** 12/12, 0 argmax mismatches, max logit error 3.6e-4 against per-step limits of
+    7e-3 to 1e-2. Adapter effect was 17–23.5, and all 20 positive controls (adapter off, wrong first header)
+    were detected.
+  - **A0, A1, A2 (negative controls):** 36/36, max error 2.3e-4.
+  - **A5-H2:** differs from the H1 reference on all 12 (max error 2.2–8.6, up to 8 argmax flips per case).
+    This is expected, because H2 keeps the previous role's adapter KV. It is descriptive only.
+- **What it means for the second-review caveat below:**
+  - In the B cases the H1 reference itself approves 2 of 4 (`t0008-B`, `t0519-B`); A1 and A2 revise all 4.
+  - So the eval's approve-on-second-review pattern reproduces without our cache code, in fp32.
+  - That is consistent with learned adapter behavior, but does not prove it: 12 inputs only, fp32 only (the
+    evals ran in bf16), and the reference is PEFT itself.
+- **Decision after this diagnostic:** Member A and Lead deferred training repair and froze the evaluated v1;
+  the measurements below are unchanged.
+- **Return package:** `diag-return-202610180959.tar.gz` (sha256 `3e1316fd…b81858`) is with Lead for Member A.
+  The `.pt` files (`p1` 2.2 GB, `p2` 4.3 GB) stay on the 4090.
+- **For Member A:** `run_reference.py` line 180 saves step slices without `.clone()`, so each
+  `p2/*.vectors.pt` holds the whole storage: 4.3 GB in total instead of a few MB. The results are unaffected.
+
 ### 2026-10-18: all six methods evaluated; `peter` merged into `main`; real log in the dashboard
 
 - **Evals:** A5-H2, A3, A1 and A0 ran on the 4090 in the same run as A2 and A5-H1
