@@ -41,9 +41,13 @@
 
 **1:20 — Results**
 
-> On `[[N]]` MBPP problems with a 3,000-token shared context, the aLoRA agent computed `[[X.XX]]` times fewer
-> prefill tokens than per-role LoRAs, `[[YY]]` percent fewer, with a pass rate of `[[A5-H1 %]]` versus
-> `[[A2 %]]`. `[[If the gap is >0: "That's a [[d]]-point drop we're still working on." If ≈0: "with no
+> In the same four-turn session, RoleKV computed about four times fewer tokens than per-role LoRAs, at
+> every context size from one to eight thousand tokens. The first token after a role switch arrived in about
+> `[[A5-H1 TTFT]]` milliseconds whatever the context size. Per-role LoRAs went from `[[A2 TTFT at 1k]]` to
+> `[[A2 TTFT at 8k]]` milliseconds.
+>
+> And quality: on `[[N]]` MBPP problems, with about 1,800 tokens of shared context, the pass rate was
+> `[[A5-H1 %]]` versus `[[A2 %]]`. `[[If the gap is >0: "That's a [[d]]-point drop we're still working on." If ≈0: "with no
 > measurable drop on this set."]]`
 
 **1:45 — Caveats**
