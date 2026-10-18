@@ -4,119 +4,158 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RoleKV Live</title>
-  <meta name="description" content="The same coding task on the same model, run live with per-role LoRAs and with RoleKV side by side.">
-  <meta name="theme-color" content="#F3F5F6">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.5' y='4.5' width='15' height='7' rx='1' fill='%23fff' stroke='%2315191F'/%3E%3Crect x='1' y='5' width='10' height='6' fill='%23D7F1F3'/%3E%3Crect x='11' y='5' width='4.5' height='6' fill='%23F2603F'/%3E%3C/svg%3E">
+  <meta name="description" content="The same coding task on the same model, run live with per-role LoRAs and with RoleKV side by side, with the KV cache drawn in 3D.">
+  <meta name="theme-color" content="#0B0E12">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.5' y='4.5' width='15' height='7' rx='1' fill='%2315191F' stroke='%23EEF2F6'/%3E%3Crect x='1' y='5' width='10' height='6' fill='%230E9AA7'/%3E%3Crect x='11' y='5' width='4.5' height='6' fill='%23F0593A'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500;700&family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="live.css">
+  <script type="importmap">{"imports": {"three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/"}}</script>
   <script type="module" src="live.js"></script>
 </head>
-<body class="live">
-  <header class="topbar">
+<body>
+  <div class="screen">
+  <header class="nav">
     <a class="brand" href="./" aria-label="RoleKV live demo">
       <svg class="mark" viewBox="0 0 40 16" aria-hidden="true"><rect x="0.75" y="2.75" width="38.5" height="10.5" rx="1.5" class="mark-paper"/><rect x="1.5" y="3.5" width="27" height="9" class="mark-cache"/><rect x="28.5" y="3.5" width="10" height="9" class="mark-ink"/></svg>
-      <span class="wordmark">RoleKV</span><span class="live-tag">Live</span>
+      <span class="wordmark">RoleKV</span><span class="live-tag"><span class="pulse" aria-hidden="true"></span>Live</span>
     </a>
-    <div class="topbar-actions">
-      <span class="rig" id="rig">Connecting to the model server</span>
-      <span class="mode-tag" data-mode="mock" id="smoke-tag" hidden>Smoke adapters: output quality is not meaningful</span>
-      <a class="btn quiet" href="../dashboard.html">Dashboard</a>
+    <div class="nav-right">
+      <span class="rig" id="rig"></span>
+      <span class="smoke" id="smoke-tag" hidden>Smoke adapters: output quality is not meaningful</span>
+      <nav class="nav-links" aria-label="Pages">
+        <a href="../index.html">Home</a>
+        <a href="../dashboard.html">Dashboard</a>
+      </nav>
     </div>
   </header>
 
+  <form class="controls" id="controls">
+    <label class="field task-field">Task
+      <select id="task" disabled><option>Waiting for the model server</option></select>
+    </label>
+    <fieldset class="field seg-field">
+      <legend>Context (utils.py functions)</legend>
+      <div class="seg" id="ctx"><button type="button" aria-pressed="true" disabled>30</button><button type="button" aria-pressed="false" disabled>60</button><button type="button" aria-pressed="false" disabled>120</button></div>
+    </fieldset>
+    <label class="field rate-field">Assumed GPU price, $/GPU-hour
+      <input id="rate" type="number" min="0" max="1000" step="0.05" inputmode="decimal" value="0.5" disabled>
+    </label>
+    <label class="check" title="A2 replays RoleKV's tokens and test output, so both sides are the same conversation and every cost difference comes from the cache alone.">
+      <input type="checkbox" id="mirror" disabled> Same transcript
+    </label>
+    <div class="run-buttons">
+      <button type="submit" class="btn primary" id="run" disabled>Run both</button>
+      <button type="button" class="btn" id="stop" hidden>Stop</button>
+    </div>
+  </form>
+
+  <section class="custom" id="custom" hidden aria-label="Custom task">
+    <label class="field">What should the function do?
+      <textarea id="custom-text" rows="2" placeholder="Write a function is_palindrome(s) that returns True if s reads the same backwards."></textarea>
+    </label>
+    <label class="field">Tests, one assert per line (the first is shown to the model as the visible test)
+      <textarea id="custom-asserts" class="mono" rows="2" placeholder="assert is_palindrome('level') == True&#10;assert is_palindrome('abc') == False"></textarea>
+    </label>
+  </section>
+
+  <div class="task-line" id="task-line" aria-live="polite"></div>
   <div class="banner" id="banner" role="status" hidden></div>
 
-  <main>
-    <form class="live-controls" id="controls">
-      <label class="field task-field">Task
-        <select id="task" disabled><option>Loading tasks</option></select>
-      </label>
-      <fieldset class="field seg-field">
-        <legend>Context (utils.py functions)</legend>
-        <div class="seg" id="ctx"></div>
-      </fieldset>
-      <label class="field rate-field">Assumed GPU price, $ per GPU-hour
-        <input id="rate" type="number" min="0" max="1000" step="0.05" inputmode="decimal">
-      </label>
-      <label class="check" title="A2 replays RoleKV's tokens and test output, so both columns are the same conversation and every cost difference comes from the cache alone.">
-        <input type="checkbox" id="mirror"> Same transcript
-      </label>
-      <div class="run-buttons">
-        <button type="submit" class="btn primary" id="run" disabled>Run both</button>
-        <button type="button" class="btn" id="stop" hidden>Stop</button>
-      </div>
-    </form>
-
-    <section class="custom" id="custom" hidden aria-label="Custom task">
-      <label class="field">What should the function do?
-        <textarea id="custom-text" rows="2" placeholder="Write a function is_palindrome(s) that returns True if s reads the same backwards."></textarea>
-      </label>
-      <label class="field">Tests, one assert per line (the first is shown to the model as the visible test)
-        <textarea id="custom-asserts" class="mono" rows="3" placeholder="assert is_palindrome('level') == True&#10;assert is_palindrome('abc') == False"></textarea>
-      </label>
-    </section>
-
-    <section class="task-strip" id="task-strip" aria-live="polite"></section>
-
-    <section class="board" id="board" aria-label="Running totals">
-      <div class="board-grid">
-        <span class="bh"></span>
-        <span class="bh">Tokens computed</span>
-        <span class="bh">Switch time to first token</span>
-        <span class="bh">Time on GPU</span>
-        <span class="bh">Est. cost per 1M sessions</span>
-
-        <span class="bname a2">Per-role LoRA <small>A2</small></span>
-        <span class="bval a2" id="b-tok-A2">—</span>
-        <span class="bval a2" id="b-ttft-A2">—</span>
-        <span class="bval a2" id="b-gpu-A2">—</span>
-        <span class="bval a2" id="b-usd-A2">—</span>
-
-        <span class="bname hero">RoleKV <small>A5-H1</small></span>
-        <span class="bval hero" id="b-tok-A5-H1">—</span>
-        <span class="bval hero" id="b-ttft-A5-H1">—</span>
-        <span class="bval hero" id="b-gpu-A5-H1">—</span>
-        <span class="bval hero" id="b-usd-A5-H1">—</span>
-
-        <span class="bname verdict-name"></span>
-        <span class="bcmp" id="b-tok-cmp"></span>
-        <span class="bcmp" id="b-ttft-cmp"></span>
-        <span class="bcmp" id="b-gpu-cmp"></span>
-        <span class="bcmp" id="b-usd-cmp"></span>
-      </div>
-      <p class="board-foot" id="board-foot">Press <b>Run both</b>. The two sessions take turns on one GPU: a Per-role LoRA turn, then a RoleKV turn.</p>
-    </section>
-
-    <section class="lanes" id="lanes" aria-label="Turns">
-      <header class="lane-head a2" style="grid-column: 1">
-        <h2>Per-role LoRA <small>A2</small></h2>
-        <p>A standard LoRA per role. The cache is computed with one role's weights, so every role switch re-reads the whole context.</p>
+  <main class="arena">
+    <section class="lane a2" aria-labelledby="lane-title-A2">
+      <header class="lane-head">
+        <h2 id="lane-title-A2">Per-role LoRA <small>A2</small></h2>
+        <p>A standard LoRA per role: the cache is computed with one role's weights, so every switch re-reads the whole session.</p>
       </header>
-      <header class="lane-head hero" style="grid-column: 2">
-        <h2>RoleKV <small>A5-H1</small></h2>
-        <p>Activated LoRAs: both roles share one base-model KV cache. A switch computes only the new tokens and re-reads the last reply.</p>
-      </header>
+      <div class="lane-scroll" id="cards-A2"><p class="lane-empty">Each turn appears here as the server sends it.</p></div>
     </section>
-    <section class="finals" id="finals" aria-label="Results"></section>
 
-    <section class="live-notes">
-      <ul class="key" aria-label="Tape key">
-        <li><span class="sw ink"></span>computed this turn</li>
-        <li><span class="sw cache"></span>reused from the KV cache</li>
-        <li><span class="sw canon"></span>last reply re-read with base weights (handoff)</li>
-        <li><span class="sw written"></span>written by the role</li>
-      </ul>
-      <p class="note"><b>Tokens computed</b> = prefill + handoff re-read, every token run through the model outside decoding.
-        <b>Switch time to first token</b> = mean over turns after the first, i.e. after a role switch.
-        <b>Time on GPU</b> = sum of turn times, decoding included (decoding dominates a session).
-        Comparisons use the turns both columns have finished.</p>
-      <p class="note"><b>Cost is an estimate:</b> time on GPU × the GPU price above, which is an assumption, not a measured bill.</p>
-      <p class="note" id="rig-note"></p>
+    <section class="center" aria-label="The KV cache of both sessions">
+      <div class="scene-wrap" id="scene-wrap">
+        <canvas class="scene" id="scene" aria-hidden="true"></canvas>
+        <div class="scene-labels" aria-hidden="true">
+          <span class="scene-label base" id="label-A2">Per-role LoRA<small>A2</small></span>
+          <span class="scene-label hero" id="label-A5-H1">RoleKV<small>A5-H1</small></span>
+        </div>
+        <!-- Shown until the model server answers, and kept when it never does (a static copy, or file://). -->
+        <div class="offline" id="offline">
+          <p class="offline-connecting">Connecting to the model server…</p>
+          <div class="offline-body">
+            <h2>The live demo needs its model server</h2>
+            <p>This page runs both methods on a real model, turn by turn, so it has to be opened from
+              <span class="mono">demo/live/server.py</span>. From the repository root:</p>
+            <pre class="mono">uv run python demo/live/server.py \
+  --model Qwen/Qwen2.5-Coder-1.5B-Instruct --adapters adapters/1.5b</pre>
+            <p>then open <b class="mono">http://127.0.0.1:8001/</b>. Without the trained adapters, demo/README.md
+              (Live demo) shows how to make throwaway ones on a laptop.</p>
+            <p><a href="../index.html">The homepage</a> replays one recorded session with the same 3D cache.</p>
+          </div>
+        </div>
+      </div>
+
+      <figure class="hud" id="hud">
+        <div class="hud-top">
+          <span class="caption" id="caption" aria-live="polite">Pick a task and press Run both.</span>
+          <span class="ratio" id="ratio" hidden></span>
+        </div>
+        <div class="hud-row a2">
+          <div class="hud-label">Per-role LoRA<small>A2 · re-reads every turn</small></div>
+          <canvas class="hud-tape" id="tape-A2" aria-hidden="true"></canvas>
+          <div class="hud-count"><b id="count-A2">0</b><small>tokens computed</small></div>
+        </div>
+        <div class="hud-row hero">
+          <div class="hud-label">RoleKV<small>A5-H1 · keeps the shared cache</small></div>
+          <canvas class="hud-tape" id="tape-A5-H1" aria-hidden="true"></canvas>
+          <div class="hud-count"><b id="count-A5-H1">0</b><small>tokens computed</small></div>
+        </div>
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-label">Time to first token after a switch</span>
+            <span class="stat-vals"><b class="a2" id="ttft-A2">—</b><b class="hero" id="ttft-A5-H1">—</b></span>
+            <span class="stat-cmp" id="ttft-cmp"></span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Time on GPU</span>
+            <span class="stat-vals"><b class="a2" id="gpu-A2">—</b><b class="hero" id="gpu-A5-H1">—</b></span>
+            <span class="stat-cmp" id="gpu-cmp"></span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Est. cost per 1M sessions</span>
+            <span class="stat-vals"><b class="a2" id="usd-A2">—</b><b class="hero" id="usd-A5-H1">—</b></span>
+            <span class="stat-cmp" id="usd-cmp"></span>
+          </div>
+        </div>
+        <div class="hud-foot">
+          <ul class="key" aria-label="Key">
+            <li><i class="sw ink" aria-hidden="true"></i>computed this turn</li>
+            <li><i class="sw cache" aria-hidden="true"></i>reused from the cache</li>
+            <li><i class="sw canon" aria-hidden="true"></i>last reply re-read (handoff)</li>
+            <li><i class="sw written" aria-hidden="true"></i>written</li>
+          </ul>
+          <span class="status" id="status"></span>
+        </div>
+      </figure>
+    </section>
+
+    <section class="lane hero" aria-labelledby="lane-title-A5-H1">
+      <header class="lane-head">
+        <h2 id="lane-title-A5-H1">RoleKV <small>A5-H1</small></h2>
+        <p>An Activated LoRA per role: both roles share one base-model KV cache, so a switch computes only the new tokens.</p>
+      </header>
+      <div class="lane-scroll" id="cards-A5-H1"><p class="lane-empty">Each turn appears here as the server sends it.</p></div>
     </section>
   </main>
+  </div>
+
+  <footer class="notes">
+    <p><b>Tokens computed</b> = prefill + handoff re-read: every token run through the model outside decoding.
+      <b>Time to first token after a switch</b> = mean over the turns after the first. <b>Time on GPU</b> = sum of turn
+      times, decoding included. Comparisons use the turns both sides have finished.
+      <b>Cost is an estimate</b>: time on GPU × the GPU price above, an assumption, not a measured bill.</p>
+    <p id="rig-note"></p>
+  </footer>
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <p class="visually-hidden" id="announcer" aria-live="polite"></p>
 </body>

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   parseJSONL, isolateDataset, buildRuns, analyze, headline, pairTasks, passRate, sweepSeries,
   selectDefaultContextRuns, auditTask, ttftEligible, turnSegments, turnTotals, meanGpuSeconds,
-  tapeSpans, tapeScale, featuredTask, replayContextSizes, runFor, sweepSummary, isSweepRun,
+  tapeSpans, tapeScale, featuredTask, replayContextSizes, runFor, sweepSummary, isSweepRun, cellCategory, EMPTY_SPANS,
 } from "../js/metrics.js";
 
 // ---------- toy fixture helpers ----------
@@ -350,4 +350,19 @@ test("with eval and sweep runs at one size, quality uses the eval runs and the s
   assert.equal(a.selection.byMethod.A2.run.run_id, "eval-A2");
   assert.equal(a.a2Pass.passed, 0);
   assert.deepEqual(a.sweep.points.map((p) => [p.k, p.a2Run.run_id]), [[2, "sweep-A2-ctx2k"], [8, "sweep-A2-ctx8k"]]);
+});
+
+test("cellCategory: a 3D cache cell takes the category of its centre token", () => {
+  // RoleKV's second turn in the homepage session: 1,217 reused, 89 re-read at the handoff, 87 prefilled, 30 written.
+  const sp = tapeSpans({ prefill_tokens: 87, reused_tokens: 1217, canon_tokens: 89, decode_tokens: 30 });
+  const at = (token, bin = 8) => cellCategory(sp, Math.floor(token / bin), bin);
+  assert.equal(at(0), "reused");
+  assert.equal(at(1210), "reused");          // cell 151 covers 1208-1215, centre 1212
+  assert.equal(at(1220), "canon");           // centre 1220, inside [1217, 1306)
+  assert.equal(at(1310), "recomputed");      // centre 1316, inside [1306, 1393)
+  assert.equal(at(1400), "written");         // from the end of the read on
+  assert.equal(cellCategory(tapeSpans({ prefill_tokens: 100, reused_tokens: 0, canon_tokens: 0, decode_tokens: 10 }), 3, 8), "recomputed");
+  // A session with no turn yet has nothing: every cell is past the (empty) read.
+  assert.equal(EMPTY_SPANS.end, 0);
+  assert.equal(cellCategory(EMPTY_SPANS, 0, 8), "written");
 });

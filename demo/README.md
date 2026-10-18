@@ -141,6 +141,7 @@ dashboard.html        page shell for the dashboard and the presentation stage
 styles.css            the session-tape world: tokens, tape, dashboard and stage styles
 js/home.js            homepage: the replay controller (HUD tapes + 3D in lockstep), copied numbers with sources
 js/cache3d.js         the KV cache in 3D: two instanced slabs of cells, the read wave, bloom, drag, hover
+js/tapecanvas.js      the session tape on a <canvas> for the dark pages (homepage HUD, live demo)
 vendor/three/         Three.js r186 (MIT), official build files only; see its README
 js/metrics.js         pure data functions (parse, validate, select, compute, tape geometry); no DOM
 js/data.js            event-log loading (?log=, real default, mock fallback, file picker)
@@ -151,16 +152,27 @@ js/app.js             dashboard entry point and rendering
 js/present.js         the ?present stage
 mock/make_mock.py     deterministic mock generator
 mock/mock_events.jsonl
-tests/metrics.test.mjs
+tests/*.test.mjs      Node tests: metrics, charts, the live demo's state (live.test.mjs)
 data/                 put the real events.jsonl here
+live/                 the live demo (below): server.py, index.html, live.js, livemodel.js, live.css
 ```
 
 ## Live demo
 
 `demo/live/` runs the comparison live instead of replaying logs: the same MBPP task on the same model, Per-role
-LoRA (A2) in the left column and RoleKV (A5-H1) in the right, with running totals on top (tokens computed and
-the ratio, switch time to first token, time on GPU, and an estimated cost). Each turn appears when it finishes,
-with its text, its counters and its session tape.
+LoRA (A2) in the left column and RoleKV (A5-H1) in the right. It is the homepage's dark world with live data:
+in the middle, the homepage's two 3D cache blocks and HUD tapes, and under them the running totals (tokens
+computed and the ratio, time to first token after a switch, time on GPU, an estimated cost). The homepage's nav
+has a **Live** link to it.
+
+- **Turns:** each turn's card (text, verdict, code, tokens computed and reused, time to first token, test result)
+  appears in its column as soon as the server sends it.
+- **The boards** play a turn once both methods have sent it, so the two caches fill side by side: A2's block is
+  emptied and re-read at every turn, RoleKV's keeps its cache and computes only the new tokens, with the handoff
+  re-read in violet. A block holds the session's context plus headroom and grows (with a reflow) if a session
+  outgrows it. If WebGL is missing, the tapes and cards still work.
+- **Without the server** (a static copy of `demo/`, or the file opened directly), the page says what to run
+  instead of staying blank.
 
 - **Server:** `demo/live/server.py`, stdlib only (`http.server` and Server-Sent Events) on top of the locked
   environment. It loads the model once with both methods' adapters and runs the two sessions interleaved turn
@@ -168,8 +180,10 @@ with its text, its counters and its session tape.
   The protocol is `run_session`'s, and the tool output is `eval.testrun.run_mbpp_task` on all asserts, as in the
   evals. One run at a time: a second tab gets "busy", and Stop or closing the page ends the run after the turn
   in progress.
-- **Page:** `demo/live/index.html` with `live.js` and `live.css`; no build step. It reuses `../styles.css` and
-  the dashboard's tape code.
+- **Page:** `demo/live/index.html`, `live.js` (DOM, the stream, the boards), `livemodel.js` (pure state, tested in
+  Node) and `live.css` (home.css's tokens and fonts, sized for a projector); no build step. It reuses
+  `../js/cache3d.js`, `../js/tapecanvas.js` and `metrics.tapeSpans`, so the homepage and the live page draw the
+  cache the same way.
 - **Tasks:** any of the 100 eval tasks, or a custom task (a description plus one or more `assert` lines; the
   first is shown to the model as the visible test). The context selector sets the utils.py size (30 functions
   is the eval's ~2k tokens; 60 and 120 show the saving grow).

@@ -11,7 +11,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { tapeSpans } from "./metrics.js";
+import { tapeSpans, cellCategory, EMPTY_SPANS } from "./metrics.js";
 
 const HEX = { cached: "#10A0AE", read: "#F0593A", canon: "#8470F5", written: "#E6EBF0", dim: "#2A3442", ghost: "#1A2230", bg: "#0B0E12" };
 const GAP = 8;          // aisle between the two blocks, in cell pitches
@@ -24,15 +24,23 @@ const lin = (hex) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; }
 /**
  * @param canvas the <canvas> to draw into (sized by CSS; the renderer follows it)
  * @param methods [{ key, turns }] in display order, left to right
- * @param scale   the token count that fills a block (the session's final length)
+ * @param scale   the token count that fills a block (the session's final length); relayout() changes it
  * @param labels  { [key]: HTMLElement } floating labels, kept above each block's front face
+ * @param view    camera framing: { wide, narrow } each { fraction, shift, lift, height }. The defaults leave
+ *                the left of a wide screen to the homepage's words; a page that gives the scene its own
+ *                panel centres it with { wide: { fraction: 0.8, shift: 0, lift: 0 } }.
  */
-export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28, labels = {}, reducedMotion = false, onHover }) {
-  const nCols = Math.ceil(scale / bin);          // cells per layer
-  const side = Math.ceil(Math.sqrt(nCols));      // the layer map is side × side, filled row by row
-  // The read wave is a cross-section moving out of the depth: each layer starts a whole map after the one
-  // behind it, so by read = 1 the front layer has just finished.
-  const lag = nCols / layers;
+export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28, labels = {}, reducedMotion = false, onHover, view = {} }) {
+  let nCols, side, lag, extent;
+  const layout = () => {
+    nCols = Math.ceil(scale / bin);              // cells per layer
+    side = Math.ceil(Math.sqrt(nCols));          // the layer map is side × side, filled row by row
+    // The read wave is a cross-section moving out of the depth: each layer starts a whole map after the one
+    // behind it, so by read = 1 the front layer has just finished.
+    lag = nCols / layers;
+    extent = { x: methods.length * side + (methods.length - 1) * GAP, y: side, z: layers };
+  };
+  layout();
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -51,9 +59,8 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
   scene.add(fill);
 
   // A faint floor and a drift of loose tokens give the blocks somewhere to lie.
-  const floorY = -(side - 1) / 2 - 1.2;
   const grid = new THREE.GridHelper(600, 60, 0x1e2733, 0x141b25);
-  grid.position.y = floorY;
+  grid.position.y = -(side - 1) / 2 - 1.2;
   grid.material.transparent = true;
   grid.material.opacity = 0.5;
   scene.add(grid);
@@ -64,17 +71,22 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
   // the back and the last layer nearest the viewer. The blocks stand side by side on the floor.
   const C = { cached: lin(HEX.cached), read: lin(HEX.read), canon: lin(HEX.canon), written: lin(HEX.written), dim: lin(HEX.dim), ghost: lin(HEX.ghost) };
   const geo = new THREE.BoxGeometry(1, 1, 1);
-  const extent = { x: methods.length * side + (methods.length - 1) * GAP, y: side, z: layers };
   const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _m = new THREE.Matrix4();
-  const slabs = methods.map((m, idx) => {
+  /** (Re)build one block's cells for the current layout. */
+  const build = (slab, idx) => {
     const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff }), nCols * layers);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    const x = (idx - (methods.length - 1) / 2) * (side + GAP);
-    const slab = { key: m.key, turns: m.turns, mesh, x, size: new Float32Array(nCols * layers).fill(-1), frame: { turn: 0, read: 0, write: 0 }, label: labels[m.key] };
     mesh.setColorAt(0, new THREE.Color(HEX.ghost));
     mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
     mesh.userData.slab = slab;
+    slab.mesh = mesh;
+    slab.x = (idx - (methods.length - 1) / 2) * (side + GAP);
+    slab.size = new Float32Array(nCols * layers).fill(-1);
     scene.add(mesh);
+  };
+  const slabs = methods.map((m, idx) => {
+    const slab = { key: m.key, turns: m.turns, frame: { turn: 0, read: 0, write: 0 }, label: labels[m.key] };
+    build(slab, idx);
     return slab;
   });
   const place = (slab, c, l, size) => {
@@ -91,17 +103,13 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
   composer.addPass(new OutputPass());
 
   /** What a cell is on this turn: the dashboard's categories, decided by the cell's centre token. */
-  const category = (sp, c) => {
-    const mid = c * bin + bin / 2;
-    if (mid >= sp.recomputed[1]) return "written";
-    if (sp.canon && mid >= sp.canon[0] && mid < sp.canon[1]) return "canon";
-    if (mid >= sp.recomputed[0]) return "recomputed";
-    return "reused";
-  };
+  const category = (sp, c) => cellCategory(sp, c, bin);
+  /** A turn's spans; a session with no turn yet (a live run before its first turn) is all ghost cells. */
+  const spansOf = (slab, turn) => (slab.turns[turn] ? tapeSpans(slab.turns[turn]) : EMPTY_SPANS);
 
   const paint = (slab, now) => {
     const { turn, read, write } = slab.frame;
-    const sp = tapeSpans(slab.turns[turn]);
+    const sp = spansOf(slab, turn);
     // The wave starts at the first cell to read in the back layer and, by read = 1, has passed the last cell
     // to read in the front layer.
     const start = sp.reused[1] / bin, stop = sp.recomputed[1] / bin;
@@ -151,7 +159,11 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
   // ---------- Camera ----------
   // `fraction` is how much of the view width the towers may take; `shift` and `lift` slide the picture right
   // and up with an off-centre projection, leaving the left for the words and the bottom for the HUD.
-  const orbit = { az: 0.5, polar: 1.12, userAz: 0, userPolar: 0, targetAz: 0, targetPolar: 0, fraction: 0.46, shift: 0.2, lift: 0.1 };
+  const orbit = { az: 0.5, polar: 1.12, userAz: 0, userPolar: 0, targetAz: 0, targetPolar: 0, fraction: 0.46, shift: 0.2, lift: 0.1, height: 1 };
+  const views = {
+    wide: { fraction: 0.46, shift: 0.2, lift: 0.1, height: 1, ...view.wide },
+    narrow: { fraction: 0.9, shift: 0, lift: 0, height: 1, ...view.narrow },
+  };
   let w = 1, h = 1, dirty = true;
   const fit = () => {
     const r = canvas.getBoundingClientRect();
@@ -160,11 +172,8 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
     composer.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    const narrow = w < 900;
-    orbit.fraction = narrow ? 0.9 : 0.46;
-    orbit.shift = narrow ? 0 : 0.2;
-    orbit.lift = narrow ? 0 : 0.1;
-    if (narrow) camera.clearViewOffset(); else camera.setViewOffset(w, h, -orbit.shift * w, orbit.lift * h, w, h);
+    Object.assign(orbit, w < 900 ? views.narrow : views.wide);
+    if (!orbit.shift && !orbit.lift) camera.clearViewOffset(); else camera.setViewOffset(w, h, -orbit.shift * w, orbit.lift * h, w, h);
     dirty = true;
   };
   const placeCamera = (now) => {
@@ -179,7 +188,7 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
     // The blocks take about half the view height: their projected height over the visible half-height.
     const depth = extent.z * Math.abs(Math.cos(az)) + extent.x * Math.abs(Math.sin(az));
     const tall = (extent.y * Math.sin(polar) + depth * Math.cos(polar)) * 1.05;
-    const R = Math.max(footprint / 2 / (orbit.fraction * halfTanX), tall / halfTanY);
+    const R = Math.max(footprint / 2 / (orbit.fraction * halfTanX), tall / (orbit.height * halfTanY));
     camera.position.set(R * Math.sin(polar) * Math.sin(az), R * Math.cos(polar), R * Math.sin(polar) * Math.cos(az));
     camera.lookAt(0, 0, 0);
     scene.fog.near = R * 0.9; scene.fog.far = R * 3;
@@ -214,7 +223,7 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
     if (!hit || hit.instanceId === undefined) return null;
     const slab = hit.object.userData.slab;
     const c = hit.instanceId % nCols, l = Math.floor(hit.instanceId / nCols);
-    const sp = tapeSpans(slab.turns[slab.frame.turn]);
+    const sp = spansOf(slab, slab.frame.turn);
     if (c * bin >= sp.end) return null;                                 // a ghost cell: not in the session yet
     return { key: slab.key, layer: l + 1, layers, from: c * bin + 1, to: Math.min((c + 1) * bin, sp.end), category: category(sp, c), x, y };
   };
@@ -267,9 +276,34 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
       Object.assign(s.frame, frame);
       dirty = true;
     },
+    /** Replace one method's turns (a live session grows a turn at a time). */
+    setTurns(key, turns) {
+      const s = slabs.find((x) => x.key === key);
+      if (!s) return;
+      s.turns = turns;
+      dirty = true;
+    },
+    /** Change how many tokens a block holds and how many tokens make a cell; rebuilds the cells when needed. */
+    relayout({ scale: nextScale = scale, bin: nextBin = bin } = {}) {
+      const changed = Math.ceil(nextScale / nextBin) !== nCols || nextBin !== bin;
+      scale = nextScale; bin = nextBin;
+      if (!changed) return;
+      layout();
+      slabs.forEach((s, idx) => {
+        scene.remove(s.mesh);
+        s.mesh.material.dispose();
+        s.mesh.dispose();
+        build(s, idx);
+      });
+      grid.position.y = -(side - 1) / 2 - 1.2;
+      dirty = true;
+    },
     /** Draw one frame now, outside the animation loop (a still for tests or a background page). */
     render() { renderFrame(performance.now()); },
-    pickAt, layers, bin, nCols, side,
+    pickAt, layers,
+    get bin() { return bin; },
+    get nCols() { return nCols; },
+    get side() { return side; },
     dispose() { cancelAnimationFrame(raf); ro.disconnect(); renderer.dispose(); },
   };
 }

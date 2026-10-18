@@ -587,6 +587,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "default_usd_per_gpu_hour": DEFAULT_USD_PER_GPU_HOUR,
         "max_new_tokens": limits,
         "max_revise": MAX_REVISE,
+        "layers": model.config.num_hidden_layers,  # the depth of the page's 3D cache
     }
     server = make_server(App(worker, tasks, info, args.ctx_funcs), args.host, args.port)
     print(f"RoleKV live demo: http://{args.host}:{args.port}/  (Ctrl+C to stop)", flush=True)
