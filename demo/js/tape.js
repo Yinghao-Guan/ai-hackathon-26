@@ -49,10 +49,6 @@ export function tapeEl(turn, scale, { method, index, pending = false, perToken }
   const inkTokens = s.recomputed[1] - s.recomputed[0];
   const inkMs = sweepMs(inkTokens, perToken ? { perToken } : undefined);
   const canonMs = s.canon ? sweepMs(s.canon[1] - s.canon[0], perToken ? { perToken } : undefined) : 0;
-  // The handoff re-read covers the role header too, which sits just before the outlined output. Draw that
-  // part in a lighter violet so the full-strength underline lines up with the outline it belongs to.
-  const canonHead = s.canon && s.canon[0] < s.written[0] ? [s.canon[0], s.written[0]] : null;
-  const canonBody = s.canon ? [Math.max(s.canon[0], s.written[0]), s.canon[1]] : null;
   const node = el("div", {
     class: `tape${pending ? " pending" : ""}`, role: "img",
     "aria-label": tapeLabel(method, index, turn), "data-scale": scale,
@@ -62,8 +58,7 @@ export function tapeEl(turn, scale, { method, index, pending = false, perToken }
   s.reused[1] > 0 ? el("span", { class: "seg cache", style: pos(s.reused, scale) }) : null,
   inkTokens > 0 ? el("span", { class: "seg ink", style: pos(s.recomputed, scale) }) : null,
   s.written[1] > s.written[0] ? written(s.written, scale) : null,
-  canonHead ? el("span", { class: "seg canon head", style: pos(canonHead, scale) }) : null,
-  canonBody && canonBody[1] > canonBody[0] ? el("span", { class: "seg canon", style: pos(canonBody, scale) }) : null);
+  s.canon ? el("span", { class: "seg canon", style: pos(s.canon, scale) }) : null);
   narrowWatch?.observe(node);
   node.duration = reducedMotion() ? 0 : inkMs + canonMs;
   return node;
@@ -112,12 +107,18 @@ export function sessionMap(turns, task) {
   // A flag closer than this (in % of the width) to the previous one gets a taller stem so labels don't collide.
   const FLAG_GAP = 8;
   let prevAt = -Infinity, prevEnd = null;
-  // The role header sits just before each output; its length is the part of a handoff re-read that is not
-  // output (canon − decode). The last turn has no re-read, so it borrows the header length of the others.
-  const hdrs = turns.map((t) => t.canon_tokens - t.decode_tokens).filter((v) => v > 0);
+  // Turn i's handoff re-read happens at the start of turn i+1 (tapeSpans: canon sits after the cache), and it
+  // re-reads exactly turn i's header + output. So turn i starts where turn i+1's re-read starts, and the
+  // header is that re-read minus turn i's output. The last turn is never re-read, so it borrows the others'
+  // header length.
+  const hdrs = turns.slice(0, -1).map((t, i) => (turns[i + 1].canon_tokens || 0) - t.decode_tokens).filter((v) => v > 0);
   const hdr = hdrs.length ? Math.min(...hdrs) : 0;
   spans.forEach((sp, i) => {
-    const turnStart = sp.canon ? sp.canon[0] : Math.max(ctx, sp.written[0] - hdr);
+    const next = spans[i + 1];
+    let turnStart = next?.canon ? next.canon[0] : Math.max(ctx, sp.written[0] - hdr);
+    // Only the end-of-turn markers (not re-read) separate back-to-back turns; close that gap so they share
+    // one divider instead of drawing two outlines a hair apart.
+    if (prevEnd !== null && turnStart > prevEnd && turnStart - prevEnd <= 3) turnStart = prevEnd;
     const box = written([turnStart, sp.end], zoomScale, zpos([turnStart, sp.end]));
     // Back-to-back turns (no tool output between them) share one divider instead of two touching outlines.
     if (prevEnd !== null && turnStart <= prevEnd) box.classList.add("joined");

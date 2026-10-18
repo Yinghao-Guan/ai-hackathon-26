@@ -186,8 +186,6 @@ label.btn:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; }
   top: auto; height: 42%; background: var(--canon);
   clip-path: inset(0 0 0 0); transition: clip-path var(--canon-ms, 200ms) var(--ease-out) var(--ink-ms, 0ms);
 }
-/* The role header part of a handoff re-read: same mark, lighter, so the full underline aligns with the output. */
-.tape .canon.head { background: color-mix(in srgb, var(--canon) 38%, transparent); }
 .tape.pending .ink, .tape.pending .canon { clip-path: inset(0 100% 0 0); transition: none; }
 .tape.pending .written { opacity: 0; transition: none; }
 
