@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RoleKV Live</title>
+  <meta name="description" content="The same coding task on the same model, run live with per-role LoRAs and with RoleKV side by side.">
+  <meta name="theme-color" content="#F3F5F6">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.5' y='4.5' width='15' height='7' rx='1' fill='%23fff' stroke='%2315191F'/%3E%3Crect x='1' y='5' width='10' height='6' fill='%23D7F1F3'/%3E%3Crect x='11' y='5' width='4.5' height='6' fill='%23F2603F'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;500&family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="live.css">
+  <script type="module" src="live.js"></script>
+</head>
+<body class="live">
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="RoleKV live demo">
+      <svg class="mark" viewBox="0 0 40 16" aria-hidden="true"><rect x="0.75" y="2.75" width="38.5" height="10.5" rx="1.5" class="mark-paper"/><rect x="1.5" y="3.5" width="27" height="9" class="mark-cache"/><rect x="28.5" y="3.5" width="10" height="9" class="mark-ink"/></svg>
+      <span class="wordmark">RoleKV</span><span class="live-tag">Live</span>
+    </a>
+    <div class="topbar-actions">
+      <span class="rig" id="rig">Connecting to the model server</span>
+      <span class="mode-tag" data-mode="mock" id="smoke-tag" hidden>Smoke adapters: output quality is not meaningful</span>
+      <a class="btn quiet" href="../">Dashboard</a>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="status" hidden></div>
+
+  <main>
+    <form class="live-controls" id="controls">
+      <label class="field task-field">Task
+        <select id="task" disabled><option>Loading tasks</option></select>
+      </label>
+      <fieldset class="field seg-field">
+        <legend>Context (utils.py functions)</legend>
+        <div class="seg" id="ctx"></div>
+      </fieldset>
+      <label class="field rate-field">Assumed GPU price, $ per GPU-hour
+        <input id="rate" type="number" min="0" max="1000" step="0.05" inputmode="decimal">
+      </label>
+      <label class="check" title="A2 replays RoleKV's tokens and test output, so both columns are the same conversation and every cost difference comes from the cache alone.">
+        <input type="checkbox" id="mirror"> Same transcript
+      </label>
+      <div class="run-buttons">
+        <button type="submit" class="btn primary" id="run" disabled>Run both</button>
+        <button type="button" class="btn" id="stop" hidden>Stop</button>
+      </div>
+    </form>
+
+    <section class="custom" id="custom" hidden aria-label="Custom task">
+      <label class="field">What should the function do?
+        <textarea id="custom-text" rows="2" placeholder="Write a function is_palindrome(s) that returns True if s reads the same backwards."></textarea>
+      </label>
+      <label class="field">Tests, one assert per line (the first is shown to the model as the visible test)
+        <textarea id="custom-asserts" class="mono" rows="3" placeholder="assert is_palindrome('level') == True&#10;assert is_palindrome('abc') == False"></textarea>
+      </label>
+    </section>
+
+    <section class="task-strip" id="task-strip" aria-live="polite"></section>
+
+    <section class="board" id="board" aria-label="Running totals">
+      <div class="board-grid">
+        <span class="bh"></span>
+        <span class="bh">Tokens computed</span>
+        <span class="bh">Switch time to first token</span>
+        <span class="bh">Time on GPU</span>
+        <span class="bh">Est. cost per 1M sessions</span>
+
+        <span class="bname a2">Per-role LoRA <small>A2</small></span>
+        <span class="bval a2" id="b-tok-A2">—</span>
+        <span class="bval a2" id="b-ttft-A2">—</span>
+        <span class="bval a2" id="b-gpu-A2">—</span>
+        <span class="bval a2" id="b-usd-A2">—</span>
+
+        <span class="bname hero">RoleKV <small>A5-H1</small></span>
+        <span class="bval hero" id="b-tok-A5-H1">—</span>
+        <span class="bval hero" id="b-ttft-A5-H1">—</span>
+        <span class="bval hero" id="b-gpu-A5-H1">—</span>
+        <span class="bval hero" id="b-usd-A5-H1">—</span>
+
+        <span class="bname verdict-name"></span>
+        <span class="bcmp" id="b-tok-cmp"></span>
+        <span class="bcmp" id="b-ttft-cmp"></span>
+        <span class="bcmp" id="b-gpu-cmp"></span>
+        <span class="bcmp" id="b-usd-cmp"></span>
+      </div>
+      <p class="board-foot" id="board-foot">Press <b>Run both</b>. The two sessions take turns on one GPU: a Per-role LoRA turn, then a RoleKV turn.</p>
+    </section>
+
+    <section class="lanes" id="lanes" aria-label="Turns">
+      <header class="lane-head a2" style="grid-column: 1">
+        <h2>Per-role LoRA <small>A2</small></h2>
+        <p>A standard LoRA per role. The cache is computed with one role's weights, so every role switch re-reads the whole context.</p>
+      </header>
+      <header class="lane-head hero" style="grid-column: 2">
+        <h2>RoleKV <small>A5-H1</small></h2>
+        <p>Activated LoRAs: both roles share one base-model KV cache. A switch computes only the new tokens and re-reads the last reply.</p>
+      </header>
+    </section>
+    <section class="finals" id="finals" aria-label="Results"></section>
+
+    <section class="live-notes">
+      <ul class="key" aria-label="Tape key">
+        <li><span class="sw ink"></span>computed this turn</li>
+        <li><span class="sw cache"></span>reused from the KV cache</li>
+        <li><span class="sw canon"></span>last reply re-read with base weights (handoff)</li>
+        <li><span class="sw written"></span>written by the role</li>
+      </ul>
+      <p class="note"><b>Tokens computed</b> = prefill + handoff re-read, every token run through the model outside decoding.
+        <b>Switch time to first token</b> = mean over turns after the first, i.e. after a role switch.
+        <b>Time on GPU</b> = sum of turn times, decoding included (decoding dominates a session).
+        Comparisons use the turns both columns have finished.</p>
+      <p class="note"><b>Cost is an estimate:</b> time on GPU × the GPU price above, which is an assumption, not a measured bill.</p>
+      <p class="note" id="rig-note"></p>
+    </section>
+  </main>
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <p class="visually-hidden" id="announcer" aria-live="polite"></p>
+</body>
+</html>
