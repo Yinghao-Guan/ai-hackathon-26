@@ -29,8 +29,10 @@ const lin = (hex) => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; }
  * @param view    camera framing: { wide, narrow } each { fraction, shift, lift, height }. The defaults leave
  *                the left of a wide screen to the homepage's words; a page that gives the scene its own
  *                panel centres it with { wide: { fraction: 0.8, shift: 0, lift: 0 } }.
+ * @param spans   turn -> its spans as drawn (default metrics.tapeSpans); the live page widens the thin
+ *                handoff band so it stays visible on a projector
  */
-export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28, labels = {}, reducedMotion = false, onHover, view = {} }) {
+export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28, labels = {}, reducedMotion = false, onHover, view = {}, spans = tapeSpans }) {
   let nCols, side, lag, extent;
   const layout = () => {
     nCols = Math.ceil(scale / bin);              // cells per layer
@@ -105,7 +107,7 @@ export function createCacheScene(canvas, { methods, scale, bin = 8, layers = 28,
   /** What a cell is on this turn: the dashboard's categories, decided by the cell's centre token. */
   const category = (sp, c) => cellCategory(sp, c, bin);
   /** A turn's spans; a session with no turn yet (a live run before its first turn) is all ghost cells. */
-  const spansOf = (slab, turn) => (slab.turns[turn] ? tapeSpans(slab.turns[turn]) : EMPTY_SPANS);
+  const spansOf = (slab, turn) => (slab.turns[turn] ? spans(slab.turns[turn]) : EMPTY_SPANS);
 
   const paint = (slab, now) => {
     const { turn, read, write } = slab.frame;

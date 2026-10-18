@@ -111,6 +111,24 @@ export function capacityFor(needed, current = 0) {
   return Math.max(256, Math.ceil((needed * 1.2) / 256) * 256);
 }
 
+/** The violet handoff band is drawn at least this share of the block wide (on the boards only). */
+export const MIN_CANON_FRACTION = 0.04;
+
+/**
+ * A turn's spans as the boards draw them: the handoff re-read (canon) widened to at least `minFraction` of
+ * `scale`, growing left over cache cells so the computed (coral) tokens keep their true size. At 30 functions
+ * the real band is about 2% of the block, too thin to see from the back of a room. The cards keep the true
+ * numbers.
+ */
+export function displaySpans(turn, scale, minFraction = MIN_CANON_FRACTION) {
+  const s = tapeSpans(turn);
+  if (!s.canon) return s;
+  const min = Math.ceil(scale * minFraction);
+  if (s.canon[1] - s.canon[0] >= min) return s;
+  const from = Math.max(0, s.canon[1] - min);
+  return { ...s, reused: [0, from], canon: [from, s.canon[1]] };
+}
+
 /** Tokens per cell: 8 like the homepage, more for long contexts so a layer stays at most `maxCells` cells. */
 export const binFor = (capacity, maxCells = 400) => Math.max(8, Math.ceil(capacity / maxCells));
 

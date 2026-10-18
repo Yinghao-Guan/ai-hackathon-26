@@ -4,11 +4,11 @@
 // arrives; the boards play a turn once both methods have sent it (livemodel.nextRound), so the two caches
 // fill side by side. Model output is always inserted with textContent, never as HTML.
 import { $, el, fmtInt, reducedMotion, announce } from "../js/ui.js";
-import { tapeSpans, EMPTY_SPANS } from "../js/metrics.js";
+import { EMPTY_SPANS } from "../js/metrics.js";
 import { tapePainter } from "../js/tapecanvas.js";
 import {
   METHODS, NAME, ROLE, newRun, applyEvent, totals, compare, perMillion, capacityFor, binFor, sessionEnd,
-  nextRound, backlog, playMs, fmtMs, fmtS, fmtUsd, endWords, readCaption,
+  nextRound, backlog, playMs, fmtMs, fmtS, fmtUsd, endWords, readCaption, displaySpans,
 } from "./livemodel.js";
 
 const CELL_WORDS = {
@@ -151,6 +151,7 @@ async function makeScene(layers) {
       labels: { "A2": $("label-A2"), "A5-H1": $("label-A5-H1") },
       onHover: hoverTooltip(),
       view: { wide: VIEW, narrow: VIEW },
+      spans: (turn) => displaySpans(turn, state.capacity),
     });
     // ?debug: inspect the page, or replay recorded events through it (feed(type, event) after reset()).
     if (new URLSearchParams(location.search).has("debug")) window.__rolekv = { scene: state.scene, state, reset: resetRun, feed: onEvent };
@@ -346,7 +347,7 @@ function onEvent(type, ev) {
 
 function frame(m, i, read, write) {
   state.frames[m] = { i, read, write };
-  state.painters[m].draw({ spans: tapeSpans(state.run.turns[m][i]), scale: state.capacity, read, write });
+  state.painters[m].draw({ spans: displaySpans(state.run.turns[m][i], state.capacity), scale: state.capacity, read, write });
   state.scene?.setFrame(m, { turn: i, read, write });
 }
 

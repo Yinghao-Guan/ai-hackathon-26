@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   METHODS, newRun, applyEvent, methodOver, totals, compare, timesWord, percentWord, perMillion, capacityFor, binFor,
-  sessionEnd, nextRound, backlog, playMs, fmtMs, fmtS, fmtUsd, endWords, readCaption,
+  sessionEnd, nextRound, backlog, playMs, fmtMs, fmtS, fmtUsd, endWords, readCaption, displaySpans, MIN_CANON_FRACTION,
 } from "../live/livemodel.js";
 import { tapeSpans } from "../js/metrics.js";
 
@@ -123,6 +123,23 @@ test("the 3D cache grows in 256-token steps with 20% headroom and keeps layers a
   assert.equal(sessionEnd(run), tapeSpans(A5[3]).end);
   assert.equal(sessionEnd(run, 1), 1227 + 80);
   assert.equal(sessionEnd(newRun()), 0);
+});
+
+test("the boards draw a thin handoff band at a minimum width, over cache cells, never over computed ones", () => {
+  // RoleKV's Reviewer turn at 30 functions on the 4090: 2,038 reused, 56 re-read, 98 new; block of 2,816.
+  const t = turn("A5-H1", 1, { reused: 2038, canon: 56, prefill: 98, decode: 56 });
+  const true_ = tapeSpans(t), shown = displaySpans(t, 2816);
+  const min = Math.ceil(2816 * MIN_CANON_FRACTION);
+  assert.equal(shown.canon[1] - shown.canon[0], min);
+  assert.equal(shown.canon[1], true_.canon[1]);
+  assert.equal(shown.reused[1], shown.canon[0]);
+  assert.deepEqual([shown.recomputed, shown.written, shown.end], [true_.recomputed, true_.written, true_.end]);
+  // Wide enough already, or no handoff at all: drawn as is.
+  assert.deepEqual(displaySpans(turn("A5-H1", 1, { reused: 2038, canon: 400, prefill: 98 }), 2816),
+    tapeSpans(turn("A5-H1", 1, { reused: 2038, canon: 400, prefill: 98 })));
+  assert.deepEqual(displaySpans(A2[1], 2816), tapeSpans(A2[1]));
+  // Never reaches past the start of the block.
+  assert.equal(displaySpans(turn("A5-H1", 1, { reused: 10, canon: 5, prefill: 3 }), 2816).canon[0], 0);
 });
 
 test("nextRound plays both boards together and waits for the slower method", () => {
