@@ -3,14 +3,16 @@ import threading
 import urllib.request
 
 import pytest
-from conftest import assert_close, full_logits
+from conftest import assert_close, assert_matches, full_logits
 
+from rolekv import roles
 from serve.openai_server import (
     Backend,
     ContentStream,
     Server,
     check_calls,
     common_prefix,
+    model_specs,
     parse_reply,
     render,
     template_messages,
@@ -153,13 +155,23 @@ def test_stream_holds_json_replies_until_the_end():
 # --- Prefix reuse --------------------------------------------------------------------
 
 
-def conversation(tokenizer, n_turns: int) -> list[int]:
+def conversation_messages(n_turns: int) -> list[dict]:
     msgs = [SYSTEM, {"role": "user", "content": "Create is_prime.py and test it."}]
     for i in range(n_turns):
         msgs.append({"role": "assistant", "content": None, "tool_calls": [
             {"id": f"c{i}", "type": "function", "function": {"name": "bash", "arguments": json.dumps({"command": f"ls {i}"})}}]})
         msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": f"file_{i}.py"})
-    return render(tokenizer, msgs, TOOLS)
+    return msgs
+
+
+def conversation(tokenizer, n_turns: int) -> list[int]:
+    return render(tokenizer, conversation_messages(n_turns), TOOLS)
+
+
+def role_prompt(tokenizer, n_turns: int, role: str) -> tuple[list[int], int]:
+    """A role request as the server builds it: the conversation, then the role header. Returns (ids, header_pos)."""
+    ids = render(tokenizer, conversation_messages(n_turns), TOOLS, generation_prompt=False)
+    return ids + roles.invocation_tokens(tokenizer, role), len(ids)
 
 
 def test_common_prefix():
@@ -213,6 +225,36 @@ def test_identical_prompt_recomputes_one_token(model, tokenizer):
     backend.generate(p, reuse=True, max_new_tokens=1)
     g = backend.generate(p, reuse=True, max_new_tokens=1)
     assert g.computed_tokens == 1 and g.reused_tokens == len(p) - 1
+
+
+def test_role_switch_reuses_only_base_kv_and_matches_a_full_prefill(model, tokenizer):
+    backend = Backend(model, tokenizer)
+    p1, h1 = role_prompt(tokenizer, 1, "coder")
+    g1 = backend.generate(p1, reuse=True, max_new_tokens=2, adapter="alora_coder", alora_start=h1)
+    assert g1.reused_tokens == 0
+    p2, h2 = role_prompt(tokenizer, 2, "reviewer")
+    # The history repeats "<|im_start|>assistant\n" after h1, but the coder's adapter computed that KV.
+    assert common_prefix(p1, p2) > h1
+    s, n, how = backend.take_session(p2, reuse=True)
+    assert (n, how) == (h1, "continued")
+    with s.adapter("alora_reviewer"):
+        logits = backend.prefill(s, p2, alora_start=h2)
+    assert_matches(logits, full_logits(model, p2, "alora_reviewer")[-1], full_logits(model, p2, None)[-1])
+
+
+def test_base_request_after_a_role_request_stops_at_the_header(model, tokenizer):
+    backend = Backend(model, tokenizer)
+    p1, h1 = role_prompt(tokenizer, 1, "coder")
+    backend.generate(p1, reuse=True, max_new_tokens=2, adapter="alora_coder", alora_start=h1)
+    g = backend.generate(conversation(tokenizer, 2), reuse=True, max_new_tokens=1)
+    assert g.reused_tokens == h1
+
+
+def test_model_specs():
+    assert list(model_specs()) == ["rolekv-reuse", "rolekv-noreuse"]
+    specs = model_specs(roles.ROLES)
+    assert specs["rolekv-reviewer"].role == "reviewer" and specs["rolekv-reviewer"].reuse
+    assert not specs["rolekv-coder-noreuse"].reuse
 
 
 def test_chunked_prefill_matches_one_chunk(model, tokenizer):
@@ -285,3 +327,22 @@ def test_http_stream(server):
 def test_http_rejects_unknown_model(server):
     status, raw = post(server + "/v1/chat/completions", {"model": "gpt-4", "messages": [{"role": "user", "content": "x"}]})
     assert status == 400 and "unknown model" in json.loads(raw)["error"]["message"]
+
+
+def test_http_role_models_share_the_prefix(model, tokenizer):
+    srv = Server(("127.0.0.1", 0), Backend(model, tokenizer), max_new_tokens=3, quiet=True, roles=roles.ROLES)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}/v1/chat/completions"
+    try:
+        msgs = conversation_messages(1)
+        first = json.loads(post(url, {"model": "rolekv-coder", "messages": msgs, "tools": TOOLS})[1])
+        later = msgs + [{"role": "assistant", "content": "done"}, {"role": "user", "content": "review it"}]
+        second = json.loads(post(url, {"model": "rolekv-reviewer", "messages": later, "tools": TOOLS})[1])
+        base = json.loads(post(url, {"model": "rolekv-reviewer-noreuse", "messages": later, "tools": TOOLS})[1])
+    finally:
+        srv.shutdown()
+    assert first["usage"]["prompt_tokens_details"]["cached_tokens"] == 0
+    assert second["usage"]["prompt_tokens_details"]["cached_tokens"] == first["usage"]["prompt_tokens"] - len(
+        roles.invocation_tokens(tokenizer, "coder"))
+    assert base["usage"]["prompt_tokens_details"]["cached_tokens"] == 0
+    assert second["choices"][0]["message"] == base["choices"][0]["message"]

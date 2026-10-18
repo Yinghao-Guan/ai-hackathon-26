@@ -21,7 +21,7 @@ import urllib.request
 from pathlib import Path
 
 
-def send(dump_dir: Path, models: list[str], url: str, *, main_only: bool = False) -> None:
+def send(dump_dir: Path, models: list[str], url: str, *, main_only: bool = False, max_tokens: int | None = None) -> None:
     """Send each dumped request in order; request i goes to models[i % len(models)] (alternate roles)."""
     pairs = [(path, json.loads(path.read_text())) for path in sorted(dump_dir.glob("*.request.json"))]
     if main_only:  # drop side requests (dsh's session title) that carry no tools
@@ -31,6 +31,8 @@ def send(dump_dir: Path, models: list[str], url: str, *, main_only: bool = False
         body["model"] = model
         body["stream"] = False
         body.pop("stream_options", None)
+        if max_tokens is not None:  # e.g. 1 to time prefill only; fine for rolekv-noreuse, whose cache is never kept
+            body["max_tokens"] = max_tokens
         req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=3600) as resp:
             usage = json.loads(resp.read())["usage"]
@@ -72,11 +74,12 @@ def main() -> None:
     s.add_argument("--model", default="rolekv-noreuse", help="model id, or a comma-separated list to alternate")
     s.add_argument("--main-only", action="store_true", help="skip requests without tools (session titles)")
     s.add_argument("--url", default="http://127.0.0.1:8765/v1/chat/completions")
+    s.add_argument("--max-tokens", type=int, default=None, help="override each request's output cap")
     m = sub.add_parser("summary")
     m.add_argument("logs", type=Path, nargs="+")
     args = p.parse_args()
     if args.cmd == "send":
-        send(args.dump_dir, args.model.split(","), args.url, main_only=args.main_only)
+        send(args.dump_dir, args.model.split(","), args.url, main_only=args.main_only, max_tokens=args.max_tokens)
     else:
         for log in args.logs:
             rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]

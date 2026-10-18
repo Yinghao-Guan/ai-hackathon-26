@@ -12,7 +12,8 @@ The model id picks the KV policy:
 | rolekv-noreuse   | prefill the whole prompt on every request (per-role LoRA baseline) |
 
 Requests are rendered with the tokenizer's chat template (Qwen2.5 has a tool format), and Qwen's
-<tool_call>{json}</tool_call> blocks are parsed back into OpenAI `tool_calls`. Decoding is greedy.
+<tool_call>{json}</tool_call> blocks are parsed back into OpenAI `tool_calls`. Decoding is greedy unless
+--temperature is set; request sampling fields are ignored.
 
 Earlier tool calls are rendered as the text the model generated for them (looked up by tool-call id),
 not re-rendered by the template: the model often writes a fenced JSON call instead of Qwen's tags, and a
@@ -48,6 +49,21 @@ import torch
 from rolekv.cache import KVSession
 
 MODELS = {"rolekv-reuse": True, "rolekv-noreuse": False}  # model id -> reuse the prompt KV
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    reuse: bool
+    role: str | None = None  # a RoleKV role: its aLoRA runs from the role header the server appends
+
+
+def model_specs(roles: Sequence[str] = ()) -> dict[str, ModelSpec]:
+    """Model ids the server answers to; with role adapters loaded, two more ids per role."""
+    specs = {name: ModelSpec(reuse) for name, reuse in MODELS.items()}
+    for role in roles:
+        specs[f"rolekv-{role}"] = ModelSpec(True, role)
+        specs[f"rolekv-{role}-noreuse"] = ModelSpec(False, role)
+    return specs
 CONTEXT_WINDOW = 32768  # Qwen2.5-Coder-1.5B-Instruct's max_position_embeddings
 TOOL_OPEN, TOOL_CLOSE = "<tool_call>", "</tool_call>"
 
@@ -267,12 +283,15 @@ class Generation:
 class Backend:
     """One model, a pool of KV sessions and a lock: requests run one at a time."""
 
-    def __init__(self, model, tokenizer, *, max_sessions: int = 4, chunk: int = 1024, adapter: str | None = None):
+    def __init__(self, model, tokenizer, *, max_sessions: int = 4, chunk: int = 1024, adapter: str | None = None,
+                 temperature: float = 0.0, seed: int = 0):
         self.model = model
         self.tokenizer = tokenizer
         self.max_sessions = max_sessions
         self.chunk = chunk
         self.adapter = adapter
+        self.temperature = temperature  # 0 decodes greedily
+        self.generator = torch.Generator().manual_seed(seed)
         self.sessions: list[KVSession] = []  # least recently used first
         self.lock = threading.Lock()
         self.stop_ids = {tokenizer.convert_tokens_to_ids("<|im_end|>"), tokenizer.convert_tokens_to_ids("<|endoftext|>")}
@@ -285,13 +304,24 @@ class Backend:
             torch.cuda.synchronize(self.device)
         return time.perf_counter()
 
+    def pick(self, logits: torch.Tensor) -> int:
+        if self.temperature <= 0:
+            return int(logits.argmax())
+        probs = torch.softmax(logits.float().cpu() / self.temperature, dim=-1)
+        return int(torch.multinomial(probs, 1, generator=self.generator))
+
     def take_session(self, prompt_ids: Sequence[int], reuse: bool) -> tuple[KVSession, int, str]:
-        """A session whose cache holds prompt_ids[:n] and whose ids equal it. Returns (session, n, how)."""
+        """A session whose cache holds prompt_ids[:n] and whose ids equal it. Returns (session, n, how).
+
+        Only base-model KV is shared: a session's `adapter_from` (set by generate) is where its aLoRA
+        KV starts, and reuse stops there even when the tokens after it match (the next request's history
+        repeats the `<|im_start|>assistant` of the role header, which the adapter computed).
+        """
         if not reuse:
             return KVSession(self.model), 0, "new"
         best, best_n = None, 0
         for s in self.sessions:
-            n = common_prefix(s.ids[: s.cache_len], prompt_ids)
+            n = common_prefix(s.ids[: min(s.cache_len, s.adapter_from)], prompt_ids)
             if n > best_n:
                 best, best_n = s, n
         n = min(best_n, len(prompt_ids) - 1)  # at least one token must be fed to get logits
@@ -306,38 +336,44 @@ class Backend:
             s.cache = copy.deepcopy(best.cache)
             s.crop_to(n)
         s.ids = list(prompt_ids[:n])
+        s.adapter_from = n  # nothing kept was computed by an adapter; generate() lowers it otherwise
         self.sessions.append(s)
         while len(self.sessions) > self.max_sessions:
             self.sessions.pop(0)
         return s, n, how
 
-    def prefill(self, s: KVSession, prompt_ids: Sequence[int]) -> torch.Tensor:
+    def prefill(self, s: KVSession, prompt_ids: Sequence[int], alora_start: int | None = None) -> torch.Tensor:
         """Feed prompt_ids[cache_len:] in chunks; returns the last position's logits."""
         logits = None
         pos = s.cache_len
         while pos < len(prompt_ids):
             end = min(len(prompt_ids), pos + self.chunk)
             s.extend(prompt_ids[pos:end])
-            logits = s.prefill()
+            logits = s.prefill(alora_start=alora_start)
             pos = end
         return logits[-1]
 
     def generate(
         self, prompt_ids: Sequence[int], *, reuse: bool, max_new_tokens: int,
-        on_token: Callable[[list[int]], bool] | None = None,
+        on_token: Callable[[list[int]], bool] | None = None, adapter: str | None = None, alora_start: int | None = None,
     ) -> Generation:
-        """Greedy decoding. `on_token(gen_ids)` runs after each token; returning False stops (client gone)."""
+        """Greedy decoding. `on_token(gen_ids)` runs after each token; returning False stops (client gone).
+
+        `adapter` (default: the backend's) is active for the whole request; an aLoRA applies from
+        `alora_start` on, so the KV of every earlier position is the base model's and stays shareable.
+        """
+        adapter = adapter if adapter is not None else self.adapter
         t0 = self._sync()
         s, reused, how = self.take_session(prompt_ids, reuse)
         gen: list[int] = []
         aborted = False
         try:
-            with s.adapter(self.adapter):
-                logits = self.prefill(s, prompt_ids)
+            with s.adapter(adapter):
+                logits = self.prefill(s, prompt_ids, alora_start)
                 while True:
-                    token = int(logits.argmax())
+                    token = self.pick(logits)
                     if not gen:
-                        t1 = time.perf_counter()  # argmax() above waited for the GPU
+                        t1 = time.perf_counter()  # pick() above waited for the GPU
                     gen.append(token)
                     if token in self.stop_ids or len(gen) >= max_new_tokens:
                         break
@@ -345,7 +381,7 @@ class Backend:
                         aborted = True
                         break
                     s.extend([token])
-                    logits = s.prefill()[-1]
+                    logits = s.prefill(alora_start=alora_start)[-1]
         except BaseException:
             if s in self.sessions:
                 self.sessions.remove(s)  # a failed forward may leave some layers holding the new tokens
@@ -353,6 +389,12 @@ class Backend:
         if not reuse and s in self.sessions:
             self.sessions.remove(s)
         s.extend(gen[-1:])  # ids = prompt + every generated token; the cache lacks the last one
+        if alora_start is not None:
+            s.adapter_from = alora_start
+        elif adapter is not None:
+            s.adapter_from = reused  # a standard LoRA changes the KV of every token it was fed
+        else:
+            s.adapter_from = len(s.ids)
         t2 = self._sync()
         stopped = gen[-1] in self.stop_ids
         text = self.tokenizer.decode(gen[:-1] if stopped else gen)
@@ -375,8 +417,9 @@ class Server(ThreadingHTTPServer):
 
     def __init__(self, address, backend: Backend, *, max_new_tokens: int = 1024, lenient: bool = True,
                  log_path: Path | None = None, dump_dir: Path | None = None, quiet: bool = False,
-                 raw_history: bool = True, raw_store: Path | None = None):
+                 raw_history: bool = True, raw_store: Path | None = None, roles: Sequence[str] = ()):
         super().__init__(address, Handler)
+        self.models = model_specs(roles)
         self.raw: dict[str, str] | None = {} if raw_history else None  # tool-call id -> generated reply text
         self.raw_store = raw_store
         if self.raw is not None and raw_store and raw_store.exists():
@@ -437,7 +480,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.rstrip("/") in ("/v1/models", "/models"):
             now = int(time.time())
             data = [{"id": m, "object": "model", "created": now, "owned_by": "rolekv", "context_length": CONTEXT_WINDOW}
-                    for m in MODELS]
+                    for m in self.server.models]
             self._send_json(200, {"object": "list", "data": data})
         elif self.path.rstrip("/") in ("", "/health"):
             self._send_json(200, {"ok": True})
@@ -462,13 +505,22 @@ class Handler(BaseHTTPRequestHandler):
         received = time.perf_counter()
         rid = srv.next_id()
         model_id = body.get("model")
-        if model_id not in MODELS:
-            raise BadRequest(f"unknown model {model_id!r}; expected one of {sorted(MODELS)}")
+        spec = srv.models.get(model_id)
+        if spec is None:
+            raise BadRequest(f"unknown model {model_id!r}; expected one of {sorted(srv.models)}")
         messages, tools = body.get("messages") or [], body.get("tools") or None
         if not messages:
             raise BadRequest("messages is empty")
         tool_names = [t.get("function", {}).get("name") for t in tools or []]
-        prompt_ids = render(backend.tokenizer, messages, tools, raw=srv.raw)
+        alora_start = None
+        if spec.role is None:
+            prompt_ids = render(backend.tokenizer, messages, tools, raw=srv.raw)
+        else:  # the role header replaces the generation prompt; it is also the aLoRA's invocation sequence
+            from rolekv import roles
+
+            prompt_ids = render(backend.tokenizer, messages, tools, raw=srv.raw, generation_prompt=False)
+            alora_start = len(prompt_ids)
+            prompt_ids += roles.invocation_tokens(backend.tokenizer, spec.role)
         head_tokens = 0  # the system prompt and the tool schemas: the part every request of a session repeats
         if messages[0].get("role") in ("system", "developer"):
             head_tokens = len(render(backend.tokenizer, messages[:1], tools, generation_prompt=False))
@@ -507,7 +559,8 @@ class Handler(BaseHTTPRequestHandler):
 
         with backend.lock:
             waited_ms = (time.perf_counter() - received) * 1000
-            g = backend.generate(prompt_ids, reuse=MODELS[model_id], max_new_tokens=max_new, on_token=on_token)
+            g = backend.generate(prompt_ids, reuse=spec.reuse, max_new_tokens=max_new, on_token=on_token,
+                                 adapter=f"alora_{spec.role}" if spec.role else None, alora_start=alora_start)
         parsed = parse_reply(g.text, tool_names, lenient=srv.lenient)
         finish = "tool_calls" if parsed.calls else g.finish
         tool_calls = [{"id": f"call_{uuid.uuid4().hex[:24]}", "type": "function",
@@ -544,7 +597,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, response)
 
         record = {
-            "request": rid, "time": time.strftime("%Y-%m-%dT%H:%M:%S"), "model": model_id, "stream": stream,
+            "request": rid, "time": time.strftime("%Y-%m-%dT%H:%M:%S"), "model": model_id, "role": spec.role,
+            "stream": stream,
             "messages": len(messages), "tools": len(tools or []), "prompt_tokens": g.prompt_tokens,
             "head_tokens": head_tokens, "reused_tokens": g.reused_tokens, "computed_tokens": g.computed_tokens,
             "session": g.session, "ttft_ms": round(g.ttft_ms, 1), "decode_tokens": len(g.gen_ids),
@@ -574,12 +628,16 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--model", default=roles.BASE_MODEL)
+    p.add_argument("--adapter-dir", type=Path, default=None,
+                   help="load alora_coder and alora_reviewer from here and serve rolekv-coder / rolekv-reviewer")
     p.add_argument("--device", default="mps")
     p.add_argument("--dtype", choices=["bf16", "fp32"], default="bf16")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--max-new-tokens", type=int, default=1024)
     p.add_argument("--max-sessions", type=int, default=4)
     p.add_argument("--chunk", type=int, default=1024, help="prefill chunk size in tokens")
+    p.add_argument("--temperature", type=float, default=0.0, help="0 (default) decodes greedily")
+    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--strict", action="store_true", help="accept only <tool_call> blocks, not untagged JSON calls")
     p.add_argument("--log", type=Path, default=Path("tmp/serve_logs/requests.jsonl"))
     p.add_argument("--dump-dir", type=Path, default=None, help="keep every request and response body here")
@@ -591,12 +649,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = p.parse_args(argv)
 
     dtype = {"bf16": torch.bfloat16, "fp32": torch.float32}[args.dtype]
-    model, tokenizer = load_model(["A0"], base_model=args.model, device=args.device, dtype=dtype)
-    backend = Backend(model, tokenizer, max_sessions=args.max_sessions, chunk=args.chunk)
+    methods = ["A5-H2"] if args.adapter_dir else ["A0"]
+    model, tokenizer = load_model(methods, base_model=args.model, adapter_dir=args.adapter_dir, device=args.device,
+                                  dtype=dtype)
+    backend = Backend(model, tokenizer, max_sessions=args.max_sessions, chunk=args.chunk,
+                      temperature=args.temperature, seed=args.seed)
     srv = Server(("127.0.0.1", args.port), backend, max_new_tokens=args.max_new_tokens, lenient=not args.strict,
                  log_path=args.log, dump_dir=args.dump_dir, quiet=args.quiet,
-                 raw_history=not args.canonical_history, raw_store=args.raw_store)
-    print(f"serving {args.model} on http://127.0.0.1:{srv.server_address[1]}/v1 as {', '.join(MODELS)}", flush=True)
+                 raw_history=not args.canonical_history, raw_store=args.raw_store,
+                 roles=roles.ROLES if args.adapter_dir else ())
+    print(f"serving {args.model} on http://127.0.0.1:{srv.server_address[1]}/v1 as {', '.join(srv.models)}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
