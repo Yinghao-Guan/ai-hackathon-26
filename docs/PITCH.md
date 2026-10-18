@@ -1,5 +1,8 @@
 # Pitch and demo video: RoleKV (2 minutes)
 
+> The Devpost video now has its own script on the current UI (3D homepage, live demo, DeepSeek Harness):
+> [VIDEO_SCRIPT.md](VIDEO_SCRIPT.md). This file stays the live judging pitch.
+
 > Audience: hackathon judges who know what an LLM is but not necessarily what a KV cache is.
 > `[[Double brackets]]` = fill from validated real logs only. If real results aren't ready, keep the
 > placeholder wording in the "If results are not ready" box; never read a mock number aloud as a result.
