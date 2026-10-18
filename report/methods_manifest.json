@@ -1,0 +1,114 @@
+{
+  "audit_date": "2026-10-17",
+  "git_commit": "df1fff6de06787b6c12b77d759c030c2f428e486",
+  "source_hashes": {
+    "rolekv/tasks.py": "6351bfe32709a81986898a8d1025930333e166d4eb944c70f8c5d8367adb6dc2",
+    "train/build_dataset.py": "9dbca01ba314a6e89250838fc1b689ae4cc905ae5d8d46672bdd3b00869a4abd",
+    "rolekv/roles.py": "80f467af73444623f48880c02be3bdc61a157b6c1c6130ad5e857c60640f3092",
+    "rolekv/runtime.py": "b65ae19c9fc9b574d49a31fb127ecbb3baefda9ec1d9e0e4e76b3fdecb27c666",
+    "rolekv/cache.py": "d7bc6ec03ef5ccbec5eab4a0dc2e9ea23e07d106f21946b63e1a9851451c90ee",
+    "rolekv/eval_runner.py": "655561f3ae38a144e8206b88857eaa6c402228ae23889e70d000472dd3256f87",
+    "rolekv/costs.py": "b9866a7a01dfa1863a6fa838630bb28a5fb2dbb3e542f001545ebc602a9c995d",
+    "eval/testrun.py": "8e5cc084d1fd188418142e15c9a42d58c73eee179783a14bc29f9feb367afec7",
+    "eval/run_eval.py": "4ff99fa9c8680373e4f066656327987142668b988de5d6d43216de496a1fdff5",
+    "docs/TRACKS.md": "3b66835b92046b857eced50a5ae7475b21a0b6660fa05ff22acc3f62e2c7733e",
+    "docs/STATUS.md": "0ef298f217a9b4f6c942544d5eb39e531ebf7aaaa422e301ea6316d7a73d0477",
+    "rolekv/fast_alora.py": "594b900b63cfaed252460e3cecc4c8b1d63169895062c7f92d591b45637bd957",
+    "tests/test_fast_alora.py": "8de73d58ac423aef66ba882cad2c39a1afa67b070741cd52315a98070b87118d"
+  },
+  "scope": "Read-only inspection of current source and exported rows; no teacher calls, model training, or task evaluation.",
+  "tokenizer": {
+    "model": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+    "local_files_only": true
+  },
+  "data": {
+    "data/trajectories.jsonl": {
+      "rows": 280,
+      "unique_tasks": 280,
+      "sha256": "a5fc31f774487bd14c1c262ccad78cd06fa088ea4eff373d005f88fadbfcb37f",
+      "role_sequences": {
+        "coder -> reviewer": 222,
+        "coder -> reviewer -> coder": 58
+      }
+    },
+    "data/sft_coder.jsonl": {
+      "rows": 338,
+      "unique_tasks": 280,
+      "sha256": "ba3be511640388415f6eb05acd551bba5af24e8cfe3f581f9aca9eba69470906",
+      "input_tokens": {
+        "min": 1433,
+        "median": 2036.0,
+        "max": 2932
+      },
+      "task_tokens": {
+        "min": 1276,
+        "median": 1809.5,
+        "max": 2497
+      },
+      "system_segment_matches": 338
+    },
+    "data/sft_reviewer.jsonl": {
+      "rows": 280,
+      "unique_tasks": 280,
+      "sha256": "5bcf59b7e32c481c9695ebd3c690e1d3a7766099d984ad339d84db1f1de8754a",
+      "input_tokens": {
+        "min": 1462,
+        "median": 2060.5,
+        "max": 2882
+      },
+      "task_tokens": {
+        "min": 1276,
+        "median": 1809.0,
+        "max": 2497
+      },
+      "system_segment_matches": 280,
+      "labels": {
+        "APPROVE": 222,
+        "REVISE": 58
+      }
+    }
+  },
+  "training": {
+    "status": "Team recipe only; actual script, checkpoint configs, and run arguments absent from inspected checkout.",
+    "standard_lora_rank": 16,
+    "alora_rank": 32,
+    "alpha": "2 * rank",
+    "learning_rate": 0.0002,
+    "epochs": 2,
+    "max_length": 4096,
+    "dtype": "bf16",
+    "gradient_checkpointing": true,
+    "revise_multiplicity_reported": 3,
+    "unverified_fields": [
+      "optimizer",
+      "batch_size",
+      "gradient_accumulation",
+      "scheduler",
+      "training_seed",
+      "actual_config",
+      "completed_epochs",
+      "checkpoint_revision"
+    ]
+  },
+  "feedback": {
+    "training_tool": "all asserts",
+    "eval_runner_default": "all asserts",
+    "visible_only_option": "make_runner(tool_asserts=\"visible\")",
+    "held_out_test_claim_supported_for_default": false
+  },
+  "cache_policies": {
+    "implemented": [
+      "A0",
+      "A1",
+      "A2",
+      "A3",
+      "A5-H1",
+      "A5-H2"
+    ],
+    "proposed": [
+      "per-role private warm caches"
+    ]
+  },
+  "source_files_changed_during_authoring": [],
+  "qualification": "Source hashes identify the inspected snapshot; concurrent changes are listed separately. Data statistics were recomputed from the listed exports, without rerunning generated code."
+}
