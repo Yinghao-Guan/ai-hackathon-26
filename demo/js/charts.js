@@ -70,15 +70,19 @@ export function qualityChart(a, { w, h, large = false }) {
       root.append(svg("text", { class: `pt-label ${kind}`, x: x + (large ? 19 : 14), y: y + (large ? 6 : 5), text: methodName(r.method) }));
     }
   }
+  const fs = large ? 16 : 14, gap = large ? 16 : 12;
   for (const l of cluster(quiet, large ? 34 : 26)) {
     // A quiet label that would land beside a compared method's point goes on the far side of its own circle,
-    // so a filled point is only ever labelled with its own name.
+    // so a filled point is only ever labelled with its own name. When that side has no room inside the plot
+    // (text width estimated as in sweepChart), the label goes under its circles instead of over the y axis.
     const crowded = strongPts.some((p) => Math.abs(p.y - l.y) < p.r + 10 && p.x > l.x - 4 && p.x - l.x < 160);
     const lx = Math.min(...quiet.filter((q) => Math.hypot(q.x - l.x, q.y - l.y) < 40).map((q) => q.x));
-    root.append(svg("text", {
-      class: "pt-label quiet", x: crowded ? lx - (large ? 16 : 12) : l.x + (large ? 16 : 12), y: l.y + 5,
-      "text-anchor": crowded ? "end" : "start", text: l.text,
-    }));
+    const fitsLeft = lx - gap - l.text.length * fs * 0.56 >= m.l;
+    const below = l.y + gap + fs <= h - m.b - 4 ? l.y + gap + fs : l.y - gap;
+    const spot = !crowded ? { x: l.x + gap, y: l.y + 5, anchor: "start" }
+      : fitsLeft ? { x: lx - gap, y: l.y + 5, anchor: "end" }
+      : { x: lx - (large ? 7 : 6), y: below, anchor: "start" };
+    root.append(svg("text", { class: "pt-label quiet", x: spot.x, y: spot.y, "text-anchor": spot.anchor, text: l.text }));
   }
   return root;
 }
