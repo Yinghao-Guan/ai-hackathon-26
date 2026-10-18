@@ -19,6 +19,20 @@
 
 ## Changes
 
+### 2026-10-18: RoleKV behind DeepSeek Harness (`serve/`) merged into `main`
+
+- **What it is:** an OpenAI-compatible server on `KVSession` with server-side prefix reuse (`serve/openai_server.py`).
+  DeepSeek Harness (`dsh`) runs on it as a custom provider, headless or in its web UI. `serve/panel.py` is a
+  stage panel: reused vs recomputed tokens and the server's TTFT per dsh step, reuse and no-reuse side by side.
+- **Measured on dsh's real traffic (base 1.5B, Mac):**
+  - 97% of prompt tokens reused: 4,899 vs 163,398 computed on the same 33 requests.
+  - Per-step TTFT 0.05–0.2 s with reuse vs 2.6–3.3 s without.
+  - With a Coder/Reviewer aLoRA switch on every request, 94.8% of prompt tokens are still reused.
+- **Limits:** the 1.5B gets the first tool call right but does not finish tasks (it loops or stops early). Tool
+  calls parse only leniently (JSON, not Qwen's `<tool_call>` tags).
+- **More:** report, setup and stage flow are in `serve/README.md`. It adds no Python dependencies; the full suite
+  passes on the merge (187 tests).
+
 ### 2026-10-18: freeze the evaluated v1; defer reviewer training repair
 
 - **Decision (Member A and Lead):** keep the existing data, adapters, runtime and measured results for the
