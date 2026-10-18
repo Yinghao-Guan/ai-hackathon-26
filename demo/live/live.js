@@ -30,6 +30,8 @@ const state = {
   runId: 0,
   shown: -1,          // the last round both boards have played
   playingId: null,    // the run whose rounds are being played
+  finals: [],         // final events held back until the boards have played every round
+  boardsDone: false,  // the boards have caught up with an ended run: show "Done" and the final cards
   frames: {},         // per method: the board's current { i, read, write }
   capacity: capacityFor(IDLE_CONTEXT + 300),
   scene: null,
@@ -236,6 +238,8 @@ function resetRun() {
   state.runId++;
   state.run = newRun();
   state.shown = -1;
+  state.finals = [];
+  state.boardsDone = false;
   state.t0 = performance.now();
   for (const m of METHODS) {
     $(`cards-${m}`).replaceChildren();
@@ -325,10 +329,12 @@ function onEvent(type, ev) {
     renderStats();
     announce(`${NAME[ev.method]}, turn ${ev.turn + 1}, ${ROLE[ev.role]}: ${ev.computed_tokens} tokens computed, first token after ${Math.round(ev.ttft_ms)} ms.`);
   } else if (type === "final") {
-    addFinalCard(ev);
+    // The result card waits for the boards, so "passes" never shows while the 3D is still a round behind.
+    state.finals.push(ev);
     renderStats();
   } else if (type === "cancelled") {
-    banner("warn", "Stopped.", "The run was stopped after the turn in progress.");
+    // No banner: the status line says "Stopped" at once and the caption once the boards finish. A banner
+    // here pushed the whole stage down mid-demo.
   } else if (type === "error") {
     banner("error", "The model server reported an error.", ev.message);
   }
@@ -367,7 +373,7 @@ async function pump() {
       // Only after a role switch: on the first turn both read the same context.
       if (c.tokens && c.n >= 2) { $("ratio").textContent = `${c.tokens.text} tokens computed`; $("ratio").hidden = false; }
     }
-    if (alive() && state.run.ended && nextRound(state.run, state.shown) === null) endCaption();
+    if (alive() && state.run.ended && nextRound(state.run, state.shown) === null) finishBoards();
   } finally {
     if (state.playingId === id) state.playingId = null;
   }
@@ -396,6 +402,15 @@ async function playRound(r, alive, speed) {
     + (verdicts.length === 1 ? ` · ${verdicts[0]}` : verdicts.length ? ` · ${ms.map((m) => `${NAME[m]}: ${run.turns[m][r].verdict}`).join(" · ")}` : "");
   await Promise.all(ms.map((m) => tween(playMs(run.turns[m][r], speed).write, alive, (k) => frame(m, r, 1, k))));
   await wait(280 / speed, alive);
+}
+
+/** The boards have played every round of an ended run: the final cards and "Done" can show now. */
+function finishBoards() {
+  endCaption();
+  for (const f of state.finals) addFinalCard(f);
+  state.finals = [];
+  state.boardsDone = true;
+  renderStatus();
 }
 
 function endCaption() {
@@ -437,7 +452,7 @@ function renderStatus() {
   const elapsed = r.wall ?? (state.t0 ? (performance.now() - state.t0) / 1000 : null);
   if (state.running && r.next) parts.push(el("b", { text: `${NAME[r.next.method]} · ${ROLE[r.next.role]} is generating` }));
   else if (state.running) parts.push(el("b", { text: "Preparing the context" }));
-  else if (r.ended === "done") parts.push(el("b", { text: "Done" }));
+  else if (r.ended === "done") parts.push(el("b", { text: state.boardsDone ? "Done" : "Replaying the last turns" }));
   else if (r.ended) parts.push(el("b", { text: r.ended === "cancelled" ? "Stopped" : "Failed" }));
   if (elapsed !== null) parts.push(` · ${elapsed.toFixed(1)} s`);
   if (r.start) parts.push(r.start.mirror ? " · same transcript: A2 replays RoleKV's tokens" : " · each side writes its own replies");
