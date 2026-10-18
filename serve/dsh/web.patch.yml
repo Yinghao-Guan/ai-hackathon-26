@@ -1,0 +1,37 @@
+# Overlay for `dsh web`: use the in-page directory picker instead of the native macOS chooser, so the
+# workspace can be chosen from any browser (dsh's own apps/web/tests/pin-browse-picker.overlay.yml).
+- id: directory-picker
+  disabled: true
+- insert:
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
+# An agent preset with the same 7 tools as minimal.patch.yml (bash, read, write, edit, read_image, glob, grep),
+# for a small model: dsh's web "standard" preset has 24 tools (5.3k tokens of schemas) and its "minimal"
+# preset is a single persistent shell. The headless overlay cannot be used here: disabling base rows breaks
+# the "standard" preset, which needs them.
+- insert:
+    - id: preset-rolekv
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: rolekv
+        order: 0
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              suffix: Your working directory is {{cwd}}.
+              prefix: You are a coding agent powered by the {{model}} model.
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+# New sessions start with the rolekv preset (the composer can still pick Standard mode and the others).
+- id: agent-preset-registry
+  config:
+    default: rolekv

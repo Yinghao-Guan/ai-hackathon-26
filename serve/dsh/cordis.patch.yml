@@ -1,0 +1,77 @@
+# dsh profile patch: route DeepSeek Harness to the local RoleKV server (serve/openai_server.py).
+# Copy to $DSH_HOME/profiles/headless/cordis.patch.yml, export ROLEKV_API_KEY=local (the server ignores it),
+# and run `dsh --profile headless "task"` from a throwaway workspace directory.
+- id: llm-pi-ai
+  config:
+    providers:
+      rolekv:
+        displayName: RoleKV (local)
+        api: openai-completions
+        baseURL: !!js process.env.ROLEKV_BASE_URL || 'http://127.0.0.1:8765/v1'
+        apiKeyEnv: ROLEKV_API_KEY
+        timeoutMs: 900000
+        streamIdleTimeoutMs: 900000
+        retryPolicy:
+          mode: normal
+          maxRetries: 1
+        compat:
+          supportsDeveloperRole: false
+          maxTokensField: max_tokens
+        models:
+          - id: rolekv-reuse
+            name: RoleKV, shared KV (prefix reuse)
+            contextWindow: 32768
+            maxTokens: 1024
+            reasoningEfforts: false
+          - id: rolekv-noreuse
+            name: RoleKV, full prefill every request
+            contextWindow: 32768
+            maxTokens: 1024
+            reasoningEfforts: false
+          # Served only when the server runs with --adapter-dir (RoleKV role adapters).
+          - id: rolekv-coder
+            name: RoleKV Coder aLoRA, shared KV
+            contextWindow: 32768
+            maxTokens: 1024
+            reasoningEfforts: false
+          - id: rolekv-reviewer
+            name: RoleKV Reviewer aLoRA, shared KV
+            contextWindow: 32768
+            maxTokens: 1024
+            reasoningEfforts: false
+- id: agent-default-model
+  config:
+    provider: rolekv
+    model: !!js process.env.ROLEKV_MODEL || 'rolekv-reuse'
+# Nothing leaves the machine.
+- id: session-telemetry-otel
+  config:
+    mode: DISABLED
+# Headless has no one to answer approval prompts; the workspace-write sandbox stays on.
+- id: approval
+  config:
+    policy: never
+- id: permission
+  config:
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+      workspace-write-auto:
+        sandbox: workspace-write
+        approval: never
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never
+    defaultPreset: workspace-write-auto
+# Keep runs hermetic: no AGENTS.md / CLAUDE.md injection from the workspace or home.
+- id: agent-instructions
+  config:
+    maxBytes: 0
+# The default 64k compaction headroom exceeds a 32k window and turns compaction off.
+- id: compaction-basic
+  config:
+    headroomTokens: 2048
