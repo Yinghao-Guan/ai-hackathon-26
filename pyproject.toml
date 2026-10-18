@@ -35,3 +35,4 @@ torch = [{ index = "pytorch-cu126", marker = "sys_platform == 'win32' or sys_pla
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]  # so tests can import bench/

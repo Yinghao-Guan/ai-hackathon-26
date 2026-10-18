@@ -1,22 +1,31 @@
 """Shared fixtures: the dev model with five random, non-zero adapters.
 
+Member B modules (`eval`, `train`) live at the repo root; ensure imports resolve
+when pytest is invoked from any working directory.
+
 RT_DEVICE (default cpu) and RT_DTYPE (fp32 | bf16, default fp32) select where
 the runtime tests run. fp32 checks equality to a tight tolerance; bf16 (for a
 smoke run on the 4090) checks that the error is small next to the adapter's effect.
 """
 
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 import os
 
 import pytest
 import torch
-from peft import LoraConfig, get_peft_model
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from rolekv import roles
 
 DEVICE = torch.device(os.environ.get("RT_DEVICE", "cpu"))
 DTYPE = {"fp32": torch.float32, "bf16": torch.bfloat16}[os.environ.get("RT_DTYPE", "fp32")]
-TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 ADAPTERS = {
     "alora_coder": "coder",
     "alora_reviewer": "reviewer",
@@ -37,10 +46,16 @@ KV_RTOL = 1e-4 if DTYPE == torch.float32 else 2e-2
 
 @pytest.fixture(scope="session")
 def tokenizer():
+    from transformers import AutoTokenizer
+
     return AutoTokenizer.from_pretrained(roles.DEV_MODEL)
 
 
-def adapter_config(tokenizer, role: str | None) -> LoraConfig:
+def adapter_config(tokenizer, role: str | None):
+    from peft import LoraConfig
+
+    from rolekv.runtime import TARGET_MODULES
+
     return LoraConfig(
         r=8,
         lora_alpha=8,
@@ -53,6 +68,13 @@ def adapter_config(tokenizer, role: str | None) -> LoraConfig:
 
 @pytest.fixture(scope="session")
 def model(tokenizer):
+    from peft import get_peft_model
+    from transformers import AutoModelForCausalLM
+
+    from rolekv import fast_alora
+
+    # References and sessions must use the same aLoRA forward; test_fast_alora.py checks it against PEFT's.
+    fast_alora.install()
     torch.manual_seed(0)
     base = AutoModelForCausalLM.from_pretrained(roles.DEV_MODEL, dtype=DTYPE, attn_implementation="sdpa").to(DEVICE)
     names = list(ADAPTERS)

@@ -10,13 +10,79 @@
 | Environment | Lead | Done | `uv sync` installs everything, pinned by `uv.lock` |
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
+| Cost sweep (`bench/cost_sweep.py`) | Lead | Done on Mac; 4090 run pending | Results in `bench/results/`; see Changes below |
 | 4090 machine | Lead | In progress | [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | | |
-| Data | Member B | | |
-| Eval driver | Member B | Not started | Runtime API ready: [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
+| Data | Member B | 280 trajectories in `data/` | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
+| Eval driver | Member B | Written; connected to the runtime | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
 | Demo | Member C | Dashboard merged (PR #1) | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: data checked, eval driver connected to the runtime
+
+**Data check (Lead, for Member A and B).** Lead ran every row of `data/sft_coder.jsonl` (338 rows) and
+`data/sft_reviewer.jsonl` (280 rows) through `roles.tokenize_sft_example`.
+- **Format:** every row matches CONTRACT §2. The last segment is the right role header, and targets end with
+  `<|im_end|>\n`.
+- **Length:** the median is ~1.9k tokens and the longest row is 2,829, so `max length 4096` truncates nothing.
+- **Coder:** every coder target has a code block.
+- **Reviewer labels are imbalanced:** 222 `APPROVE` against 58 `REVISE`. A reviewer trained on this may
+  approve almost everything.
+  - Member B: if API budget allows, generate more buggy first attempts.
+  - Member A: otherwise, consider oversampling the `REVISE` rows about 3×.
+
+**Eval driver connected (for Member B).**
+- `eval/run_eval.py` expected a runner factory from the runtime. It now exists as
+  `rolekv.eval_runner:make_runner`, and `tests/test_eval_runner.py` runs your `evaluate()` end to end with it
+  for A2 and A5-H1. The command is in [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval).
+- **Tool output:** `build_dataset.py` uses `run_mbpp_task` (all asserts) for the tool output, while PLAN said
+  "visible test only". The runner follows the data, so train and eval see the same tool output. PLAN.md now
+  says this, with the caveat: absolute pass@1 is optimistic, and comparisons between methods stay fair.
+- **Environment:** `uv sync` is the team's pinned environment. You don't need `requirements.txt` or
+  `PYTHONPATH`; run modules from the repo root, e.g. `uv run python -m eval.run_eval ...`.
+
+### 2026-10-17: first cost numbers, and a fix that makes aLoRA decoding fast
+
+**First numbers (Mac).** `bench/cost_sweep.py` replays the same forced 4-turn session (buggy code → REVISE →
+fixed code → APPROVE) for each method at growing context sizes.
+- **Token counts are exact on any machine.** They depend only on the tokens, and the 0.5B and 1.5B models
+  share a tokenizer.
+- **Timings below are from the Mac GPU with the 0.5B model, so treat them as indicative.** The 4090 run with
+  1.5B replaces them ([TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop), step 4).
+
+| Context | Tokens computed: A2 → A5-H1 | Switch TTFT: A2 → A5-H1 | GPU s / session: A2 → A5-H1 |
+|---|---|---|---|
+| 1k | 5,599 → 1,576 (3.6× less) | 595 → 77 ms (7.8×) | 7.6 → 6.3 s |
+| 2k | 9,595 → 2,575 (3.7× less) | 996 → 83 ms (12×) | 9.5 → 6.9 s |
+| 4k | 17,575 → 4,570 (3.8× less) | 1,923 → 80 ms (24×) | 13.3 → 7.8 s |
+| 8k | 33,651 → 8,589 (3.9× less) | 4,071 → 101 ms (40×) | 22.3 → 9.9 s |
+
+Full table, including A5-H2: `bench/results/cost_sweep_mac.md`. Raw event log: `bench/results/cost_sweep_mac.jsonl`.
+
+How to read it (for the pitch and the Devpost):
+- The token saving approaches the number of turns. A2 re-reads the whole context on every turn, while A5
+  reads it once. "~4× less recompute" holds for this 4-turn session; a 5-turn session approaches 5×.
+- Switch TTFT is the striking number. A2's grows linearly with context, while A5-H1's stays flat at about
+  80–100 ms.
+- A5-H1 recomputes 221 tokens per session (the previous turns' outputs). That is the price of an exact
+  handoff; A5-H2 skips it.
+- Decode speed per token is within ~6% between methods.
+- Still no memory claim against A2.
+
+**Decode fix.**
+- **Problem:** PEFT's aLoRA forward waited for the GPU on every layer of every forward. aLoRA decoding was
+  6–15× slower than plain LoRA, which wiped out the TTFT win.
+- **Fix:** `rolekv/fast_alora.py` replaces it with an equivalent slice, and the runtime installs it
+  automatically ([CONTRACT.md §4](CONTRACT.md#4-peft-alora-behavior)). If you run aLoRA inference outside the
+  runtime, call `rolekv.fast_alora.install()` first.
+
+**Member A:** the 7 target modules are now a constant, `rolekv.runtime.TARGET_MODULES`.
+
+**Member C:**
+- `bench/results/cost_sweep_mac.jsonl` is a full CONTRACT log you can load now. Its `machine` is `mac`, so
+  4090-only timing views will show token counts only.
+- `bench/results/cost_sweep_4090.jsonl` (same format) will follow from the 4090.
 
 ### 2026-10-17: environment, prompt contract and runtime are in `main`
 

@@ -67,24 +67,18 @@ so random adapters are enough.
      `Remove-Item Env:RT_DTYPE` before the fp32 run.
    - If a test fails, report the assertion message with its numbers. Don't loosen tolerances or change the
      runtime.
-4. **Cost preview.** Put the throwaway script and its output in `tmp/`.
-   - **Model:** 1.5B in bf16 on CUDA, with the five random adapters built the way `tests/conftest.py` builds
-     them, but using `roles.BASE_MODEL`.
-   - **Tasks:** a `roles.task_segment` whose `utils.py` is filler Python code of about 1k, 4k and 8k tokens.
-     The content doesn't matter.
-   - **Sessions:** for each size, run `run_session` for A2 and A5-H1 with the same `forced_outputs`. Use a
-     4-turn session: buggy code (~100 tokens), a ~20-token REVISE, fixed code (~100 tokens), then APPROVE.
-     The stub `run_visible_test` returns a short failure the first time and a pass the second time.
-   - **Repeats:** call `warmup` once per engine, then run 5 repeats per size, alternating A2 and A5-H1.
-   - **Log:** write the records with `EventLog` to `tmp/cost_preview.jsonl`, with machine `4090`.
-   - **Report** a table per size and method with:
-     - `prefill_tokens_total`;
-     - median TTFT of turns ≥ 1;
-     - median `gpu_s`;
-     - decode ms/token, computed as `(turn_ms - ttft_ms) / (decode_tokens - 1)`.
-
-     Flag it if A5-H1 decodes more than 10% slower per token than A2, since PEFT's aLoRA path adds overhead to
-     every call.
+4. **Cost preview.** Run the committed sweep script (1.5B, bf16, untrained adapters at the planned ranks,
+   1k/2k/4k/8k context, 5 repeats, methods alternating):
+   ```bash
+   uv run python bench/cost_sweep.py --device cuda
+   ```
+   - It writes `bench/results/cost_sweep_4090.jsonl` (the CONTRACT event log) and
+     `bench/results/cost_sweep_4090.md` (the summary table).
+   - **Report** the summary table. Flag it if A5-H1's decode ms/token is more than 10% above A2's, since
+     PEFT's aLoRA path adds overhead to every call.
+   - The token counts must equal the Mac run in `bench/results/cost_sweep_mac.md`. They depend only on the
+     tokens, not on the machine. If they differ, report it.
+   - Commit both result files when asked; they are the 4090 sample data for Member C.
 5. **Training time estimate.** Run a throwaway LoRA loop in `tmp/` on 1.5B: r=32 on the 7 projections, bf16,
    gradient checkpointing, batch 1, random 3k-token sequences. Do 5 warm-up steps, then time 30 steps.
    - Report seconds per step and peak memory.
@@ -93,8 +87,7 @@ so random adapters are enough.
 
    If one adapter would take more than 35 minutes, we rent a GPU.
 
-**Done when** steps 1–5 are reported. Give `tmp/cost_preview.jsonl` to Member C as sample data with real 4090
-timings.
+**Done when** steps 1–5 are reported.
 
 **Next:** train the 1.5B adapters with Member A's script, then run the timed evals: A2, A5-H1 and the
 context-length sweep.

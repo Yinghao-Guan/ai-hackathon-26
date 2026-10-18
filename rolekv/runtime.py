@@ -39,6 +39,8 @@ ROLE_ADAPTERS = {
     "A5-H2": {"coder": "alora_coder", "reviewer": "alora_reviewer"},
 }
 MAX_NEW_TOKENS = {"coder": 512, "reviewer": 128}
+# The only modules adapters may target (CONTRACT.md section 5).
+TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
 
 @dataclass
