@@ -13,11 +13,34 @@
 | Cost sweep (`bench/cost_sweep.py`) | Lead | Done on Mac; 4090 run pending | Results in `bench/results/`; see Changes below |
 | 4090 machine | Lead | In progress | [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | | |
-| Data | Member B | | |
-| Eval driver | Member B | Not started | Runtime API ready: [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
+| Data | Member B | 280 trajectories in `data/` | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
+| Eval driver | Member B | Written; connected to the runtime | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
 | Demo | Member C | Dashboard merged (PR #1) | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: data checked, eval driver connected to the runtime
+
+**Data check (Lead, for Member A and B).** Lead ran every row of `data/sft_coder.jsonl` (338 rows) and
+`data/sft_reviewer.jsonl` (280 rows) through `roles.tokenize_sft_example`.
+- **Format:** every row matches CONTRACT §2. The last segment is the right role header, and targets end with
+  `<|im_end|>\n`.
+- **Length:** the median is ~1.9k tokens and the longest row is 2,829, so `max length 4096` truncates nothing.
+- **Coder:** every coder target has a code block.
+- **Reviewer labels are imbalanced:** 222 `APPROVE` against 58 `REVISE`. A reviewer trained on this may
+  approve almost everything.
+  - Member B: if API budget allows, generate more buggy first attempts.
+  - Member A: otherwise, consider oversampling the `REVISE` rows about 3×.
+
+**Eval driver connected (for Member B).**
+- `eval/run_eval.py` expected a runner factory from the runtime. It now exists as
+  `rolekv.eval_runner:make_runner`, and `tests/test_eval_runner.py` runs your `evaluate()` end to end with it
+  for A2 and A5-H1. The command is in [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval).
+- **Tool output:** `build_dataset.py` uses `run_mbpp_task` (all asserts) for the tool output, while PLAN said
+  "visible test only". The runner follows the data, so train and eval see the same tool output. PLAN.md now
+  says this, with the caveat: absolute pass@1 is optimistic, and comparisons between methods stay fair.
+- **Environment:** `uv sync` is the team's pinned environment. You don't need `requirements.txt` or
+  `PYTHONPATH`; run modules from the repo root, e.g. `uv run python -m eval.run_eval ...`.
 
 ### 2026-10-17: first cost numbers, and a fix that makes aLoRA decoding fast
 

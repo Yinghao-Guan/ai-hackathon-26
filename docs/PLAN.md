@@ -59,7 +59,11 @@ What gets computed at each turn (schematic):
 
 **Session protocol:**
 1. The Coder writes code.
-2. The harness runs the visible test (MBPP's first assert) and appends the output.
+2. The harness runs the task's MBPP asserts and appends the output.
+   - Only the first assert is shown in the task ("visible test"), but data generation ran all of them, so
+     eval does the same to keep tool output identical to training.
+   - Consequence: absolute pass@1 is optimistic. Every method gets the same information, so comparisons
+     between methods stay fair.
 3. The Reviewer answers `APPROVE` (done) or `REVISE: ...` (back to the Coder). At most 2 REVISE rounds.
 4. The final code is scored on all of MBPP's asserts.
 
