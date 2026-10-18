@@ -10,7 +10,7 @@ PATCH=""
 if [ "${1:-}" = "--minimal" ]; then PATCH="--patch $ROOT/serve/dsh/minimal.patch.yml"; shift; fi
 DSH="${DSH:-$ROOT/tmp/dsh-install/node_modules/.bin/dsh}"
 export DSH_HOME="${DSH_HOME:-$ROOT/tmp/dsh-home}" DSH_TELEMETRY_MODE=DISABLED DSH_TELEMETRY_DISABLED=1
-export ROLEKV_API_KEY=local ROLEKV_MODEL="$MODEL"
+export ROLEKV_API_KEY=local ROLEKV_MODEL="$MODEL" ROLEKV_BASE_URL="http://127.0.0.1:${ROLEKV_PORT:-8765}/v1"
 mkdir -p "$DSH_HOME/profiles/headless" "$ROOT/tmp/ws/$NAME"
 cp "$ROOT/serve/dsh/cordis.patch.yml" "$DSH_HOME/profiles/headless/cordis.patch.yml"
 cd "$ROOT/tmp/ws/$NAME"

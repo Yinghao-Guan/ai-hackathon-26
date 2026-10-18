@@ -228,6 +228,33 @@ Other settings in the patch:
 - The compaction headroom is 2048. dsh's default of 65,536 exceeds a 32k window and silently disables compaction.
   No run here reached the window.
 
+## dsh web (browser UI)
+
+```sh
+ROLEKV_PORT=8777 serve/dsh/server.sh web1                    # the RoleKV server on 127.0.0.1:8777
+ROLEKV_PORT=8777 DSH_WEB_PORT=8790 serve/dsh/web.sh web       # prints http://127.0.0.1:8790/?token=...
+```
+
+- **Launch.** `web.sh` starts `dsh --profile web` with `serve/dsh/cordis.patch.yml` and `serve/dsh/web.patch.yml`:
+  - DSH_HOME is `tmp/dsh-home` and telemetry is off;
+  - it binds 127.0.0.1 only;
+  - dsh web authenticates with the URL token (no DeepSeek login).
+- **What `web.patch.yml` adds:**
+  - dsh's in-page directory picker, because the native macOS chooser cannot be driven from another browser;
+  - an agent preset `rolekv` with the same 7 tools as headless `--minimal`, set as the deployment default.
+    The composer remembers the last preset; pick `rolekv` once.
+- **Do not combine with `minimal.patch.yml`.** Web sessions build their tools from agent presets. Disabling base
+  rows the way `minimal.patch.yml` does breaks the `standard` preset: "New session failed: agent-preset(invalid ...)".
+- **Where the UI shows reuse:**
+  - Per session: the composer footer shows `12.9K tok · Cache hit 76%`. Clicking it opens the popover with
+    uncached input, cached input and output tokens.
+  - Per step: Trajectory, click a step, then its Request; Usage shows Input / Cached / Other. The numbers equal the
+    server's log.
+  - TTFT in the UI is misleading: for a tool call the server sends the call only once it is complete, so dsh's
+    TTFT (and its tok/s) covers the whole reply. The server's `ttft_ms` is the real one.
+- **Behaviour.** In the browser the 1.5B does what it does headless: step 1 is right for "create X.py with a
+  function", "use bash to run python3 --version" and "read X.py". Then it repeats a call until you press Stop.
+
 ## RoleKV role adapters inside dsh
 
 ### What the server already does

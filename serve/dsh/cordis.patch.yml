@@ -7,7 +7,7 @@
       rolekv:
         displayName: RoleKV (local)
         api: openai-completions
-        baseURL: http://127.0.0.1:8765/v1
+        baseURL: !!js process.env.ROLEKV_BASE_URL || 'http://127.0.0.1:8765/v1'
         apiKeyEnv: ROLEKV_API_KEY
         timeoutMs: 900000
         streamIdleTimeoutMs: 900000
