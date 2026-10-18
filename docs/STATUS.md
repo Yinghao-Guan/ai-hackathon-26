@@ -10,7 +10,7 @@
 | Environment | Lead | Done | `uv sync` installs everything, pinned by `uv.lock` |
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
-| Cost sweep (`bench/cost_sweep.py`) | Lead | Mac and 4090 done; 4090 re-run pending after a decode fix | Results in `bench/results/` on `peter`; see Changes below |
+| Cost sweep (`bench/cost_sweep.py`) | Lead | Done: Mac and 4090, after the decode fix | Results in `bench/results/` on `peter`; see Changes below |
 | 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | | |
 | Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
@@ -18,6 +18,29 @@
 | Demo | Member C → Lead | Dashboard merged (C done); real-data check pending | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: final 4090 cost numbers (after the decode fix)
+
+The setup is the same as before: WSL2, 1.5B in bf16, untrained adapters, the forced 4-turn session, and
+5 repeats. Token counts are identical to the Mac run.
+
+| Context | Tokens computed: A2 → A5-H1 | Switch TTFT: A2 → A5-H1 | GPU s / session: A2 → A5-H1 |
+|---|---|---|---|
+| 1k | 5,599 → 1,576 (3.6× less) | 124 → 52 ms (2.4×) | 7.81 → 7.76 s |
+| 2k | 9,595 → 2,575 (3.7× less) | 214 → 50 ms (4.3×) | 8.11 → 7.64 s |
+| 4k | 17,575 → 4,570 (3.8× less) | 388 → 51 ms (7.6×) | 8.81 → 7.88 s (11% less) |
+| 8k | 33,651 → 8,589 (3.9× less) | 798 → 52 ms (15.5×) | 10.51 → 8.22 s (22% less) |
+
+- **Decode speed is now even:** A5-H1 decodes within 1–4% of A2 per token (37.8–39.2 vs 37.4–38.1 ms).
+  The fix worked.
+- **What to claim, for the pitch, README and Devpost:**
+  1. ~4× less prefill compute per 4-turn session. The saving approaches the number of turns.
+  2. Switch TTFT stays flat at ~51 ms, while A2's grows linearly with context: 2.4× faster at 1k, 15.5× at 8k.
+  3. Whole-session time is secondary. Decoding ~230 tokens dominates a session, so it is the same at 1k and
+     up to 22% less at 8k.
+- **Still no memory claim against A2.**
+- **Sources:** `bench/results/cost_sweep_4090.{jsonl,md}` on `peter` (the re-run commit from the 4090), and
+  `bench/results/cost_sweep_mac.*` for the token counts.
 
 ### 2026-10-17: SFT data now uses the runtime's system segment; REVISE oversampling is a training flag
 
@@ -57,7 +80,7 @@ Members B and C have finished their tracks. Lead now owns everything still open 
   `INVALID` ends A0 sessions after 2 turns. That is the expected quality floor. Watch the `INVALID` rate per
   method in the evals.
 
-### 2026-10-17: first 4090 numbers, and a decode fix
+### 2026-10-17: first 4090 numbers, and a decode fix (superseded by the re-run above)
 
 The 4090 ran the same cost sweep: WSL2, 1.5B in bf16, untrained adapters, the forced 4-turn session, and
 5 repeats. Token counts are identical to the Mac run turn by turn, as expected.
