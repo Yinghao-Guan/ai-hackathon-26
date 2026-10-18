@@ -19,7 +19,26 @@
 
 ## Changes
 
-### 2026-10-17: final 4090 cost numbers (after the decode fix)
+### 2026-10-17: adapters run in bf16; the dashboard reads real logs; doc numbers filled
+
+- **Fairness fix.** PEFT upcasts adapter weights to fp32 by default. Plain LoRA adapts every token, so the
+  upcast slowed it much more than aLoRA, which adapts the role header only: a 4k-token prefill on the Mac was
+  +39% over base for LoRA and +7% for aLoRA. With bf16 adapters it is +16% and +2%.
+  - The runtime now keeps adapters in the model dtype for every method (on `peter`).
+  - The 4090 TTFT numbers in the entry below inflated A2's TTFT. **The 4090 sweep is being re-run**, and those
+    TTFT figures must not be used.
+  - Token counts are unaffected.
+- **Dashboard + real logs** (on `peter`). Loading the real sweep log showed three bugs, now fixed:
+  - Sweep runs were merged into one fake "~3k" run that showed "20 of 20 passed". Sweep runs (`sweep-…` run
+    ids) are now excluded from quality numbers.
+  - The default context is now ~2k, the real eval size.
+  - The replay drew the H1 re-read in the old place, so A5-H1 bars were shorter than A2's.
+- **Eval run ids:** `eval/run_eval.py` now logs each method as `<run-id>-<method>`, because the dashboard
+  rejects a run id that has two methods.
+- **Docs:** `README.md`, `docs/PITCH.md` and `docs/DEVPOST_DRAFT.md` now carry the measured token counts and
+  the real challenges. 4090 TTFT/GPU-s and every quality number are still `[[placeholders]]`.
+
+### 2026-10-17: 4090 cost numbers after the decode fix (TTFT superseded: fp32 adapters, see above)
 
 The setup is the same as before: WSL2, 1.5B in bf16, untrained adapters, the forced 4-turn session, and
 5 repeats. Token counts are identical to the Mac run.
