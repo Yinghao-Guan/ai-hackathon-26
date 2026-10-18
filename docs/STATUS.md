@@ -13,11 +13,31 @@
 | Cost sweep (`bench/cost_sweep.py`) | Lead | Mac and 4090 done; 4090 re-run pending after a decode fix | Results in `bench/results/` on `peter`; see Changes below |
 | 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | | |
-| Data | Member B | 280 trajectories in `data/` | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
-| Eval driver | Member B | Written; connected to the runtime | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
-| Demo | Member C | Dashboard merged (PR #1) | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
+| Data | Member B → Lead | 280 trajectories in `data/` (B done) | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
+| Eval driver | Member B → Lead | Written; connected to the runtime; real-data dry run passes (B done) | `--runner rolekv.eval_runner:make_runner`, see [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
+| Demo | Member C → Lead | Dashboard merged (C done); real-data check pending | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: Members B and C are done; Lead takes over what is left
+
+Members B and C have finished their tracks. Lead now owns everything still open in them:
+
+| From | Open item | Plan |
+|---|---|---|
+| B | Reviewer labels are 79% `APPROVE` | Oversample the `REVISE` rows at training time; no new API spend |
+| B | Running the evals | 4090, after training (it was already Lead's) |
+| C | Dashboard has only seen mock data | Load the real 4090 sweep and eval logs into `demo/data/events.jsonl` and check every view |
+| C | Number placeholders in `README.md`, `docs/PITCH.md`, `docs/DEVPOST_DRAFT.md` | Cost numbers now; pass rates after the evals |
+| C | Video and pitch rehearsal | Lead records and presents |
+
+**Eval dry run with real data.** `eval/run_eval.py` with `rolekv.eval_runner:make_runner`, A0, 3 MBPP tasks,
+0.5B on the Mac. The whole pipeline works end to end.
+- **Context length:** the shared context with `ctx_funcs=30` is 1.5k–1.9k tokens, not ~3k. Training data uses
+  the same builder, so evals keep it.
+- **A0 Reviewer:** the base model's Reviewer copies the code instead of answering `APPROVE` or `REVISE`, so
+  `INVALID` ends A0 sessions after 2 turns. That is the expected quality floor. Watch the `INVALID` rate per
+  method in the evals.
 
 ### 2026-10-17: first 4090 numbers, and a decode fix
 
