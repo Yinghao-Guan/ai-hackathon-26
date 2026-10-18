@@ -2,6 +2,7 @@
 
 > One section per person. Each section lists what to build, when it counts as done (by T+5), and what you
 > do next. Interfaces are in [CONTRACT.md](CONTRACT.md); machines and timeline are in [PLAN.md](PLAN.md).
+> What is already built for your track, and what changed, is in [STATUS.md](STATUS.md).
 
 ## Runtime core — Lead (M4 Mac, then the 4090)
 
@@ -39,8 +40,64 @@
 3. **Adapter on during decode:** decode-step logits differ from the base logits and match a full forward.
 4. **Cost accounting:** the counters on a hand-written toy session match hand-computed numbers.
 
-**Next:** train all 1.5B adapters on the 4090 with Member A's script. Then run the timed evals: A2, A5-H1 and
-the context-length sweep.
+**Next:** the 4090 machine (below).
+
+## 4090 machine — Lead (RTX 4090 laptop)
+
+**Goal before T+5:**
+- the 4090 is ready to train and evaluate;
+- the runtime is verified on CUDA;
+- we have a first cost curve.
+
+The cost curve doesn't need trained adapters: with the turn texts forced, costs don't depend on adapter quality,
+so random adapters are enough.
+
+1. **Setup.** `git pull`, then `uv sync`; stop using any temporary venv made earlier. Check CUDA:
+   ```bash
+   uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+   ```
+   Expect `2.14.1+cu126 True` and the 4090. If CUDA is unavailable, report the `nvidia-smi` output: the driver
+   may be too old for CUDA 12.6.
+2. **Models.** Get `Qwen/Qwen2.5-Coder-1.5B-Instruct` and `Qwen/Qwen2.5-Coder-0.5B-Instruct` into the Hugging
+   Face cache.
+3. **Runtime tests on the GPU** (0.5B):
+   - bf16: `RT_DEVICE=cuda RT_DTYPE=bf16 uv run pytest -q`
+   - fp32: `RT_DEVICE=cuda uv run pytest -q`
+   - In PowerShell, set the variables first (`$env:RT_DEVICE="cuda"; $env:RT_DTYPE="bf16"`), and run
+     `Remove-Item Env:RT_DTYPE` before the fp32 run.
+   - If a test fails, report the assertion message with its numbers. Don't loosen tolerances or change the
+     runtime.
+4. **Cost preview.** Put the throwaway script and its output in `tmp/`.
+   - **Model:** 1.5B in bf16 on CUDA, with the five random adapters built the way `tests/conftest.py` builds
+     them, but using `roles.BASE_MODEL`.
+   - **Tasks:** a `roles.task_segment` whose `utils.py` is filler Python code of about 1k, 4k and 8k tokens.
+     The content doesn't matter.
+   - **Sessions:** for each size, run `run_session` for A2 and A5-H1 with the same `forced_outputs`. Use a
+     4-turn session: buggy code (~100 tokens), a ~20-token REVISE, fixed code (~100 tokens), then APPROVE.
+     The stub `run_visible_test` returns a short failure the first time and a pass the second time.
+   - **Repeats:** call `warmup` once per engine, then run 5 repeats per size, alternating A2 and A5-H1.
+   - **Log:** write the records with `EventLog` to `tmp/cost_preview.jsonl`, with machine `4090`.
+   - **Report** a table per size and method with:
+     - `prefill_tokens_total`;
+     - median TTFT of turns ≥ 1;
+     - median `gpu_s`;
+     - decode ms/token, computed as `(turn_ms - ttft_ms) / (decode_tokens - 1)`.
+
+     Flag it if A5-H1 decodes more than 10% slower per token than A2, since PEFT's aLoRA path adds overhead to
+     every call.
+5. **Training time estimate.** Run a throwaway LoRA loop in `tmp/` on 1.5B: r=32 on the 7 projections, bf16,
+   gradient checkpointing, batch 1, random 3k-token sequences. Do 5 warm-up steps, then time 30 steps.
+   - Report seconds per step and peak memory.
+   - Report whether a 4096-token sequence fits.
+   - Report the extrapolated time for 700 examples × 2 epochs.
+
+   If one adapter would take more than 35 minutes, we rent a GPU.
+
+**Done when** steps 1–5 are reported. Give `tmp/cost_preview.jsonl` to Member C as sample data with real 4090
+timings.
+
+**Next:** train the 1.5B adapters with Member A's script, then run the timed evals: A2, A5-H1 and the
+context-length sweep.
 
 ## Training script — Member A (RTX 4070 laptop)
 

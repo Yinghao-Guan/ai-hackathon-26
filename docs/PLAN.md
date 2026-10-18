@@ -1,8 +1,8 @@
 # RoleKV — LA Hacks Team Plan
 
 > 2026-10-17 · ~20 hours left. Read this first, then [CONTRACT.md](CONTRACT.md) and your section of
-> [TRACKS.md](TRACKS.md). [SPEC.md](SPEC.md) is the long-term research spec; this plan overrides its
-> scope for the hackathon.
+> [TRACKS.md](TRACKS.md). After every `git pull`, check [STATUS.md](STATUS.md) for what changed.
+> [SPEC.md](SPEC.md) is the long-term research spec; this plan overrides its scope for the hackathon.
 
 ## Goal
 
@@ -128,8 +128,10 @@ T = when the team starts on this plan.
   `uv.lock` pin every version (Python 3.11, `peft==0.21.2`). Windows and Linux get the CUDA 12.6 build of torch;
   macOS gets the default build. Native Windows is fine, no WSL needed. Run things with `uv run ...`, e.g.
   `uv run pytest`.
-- **Coding agents:** before your Claude Code or Codex session starts work, have it read `docs/PLAN.md`,
-  `docs/CONTRACT.md` and your section of `docs/TRACKS.md`.
+- **Coding agents:** before your Claude Code or Codex session starts work, have it read `docs/STATUS.md`,
+  `docs/PLAN.md`, `docs/CONTRACT.md` and your section of `docs/TRACKS.md`.
+- **Status:** when your track's status changes, update your row in `docs/STATUS.md`. If the change affects
+  another track, also add a note under "Changes".
 
 ## Risks
 
