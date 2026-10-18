@@ -8,11 +8,11 @@
 
 | Time | Beat | On screen |
 |---|---|---|
-| 0:00–0:20 | The problem: role switches re-read everything | Session Replay, A2 panel only |
-| 0:20–0:45 | The idea: Activated LoRA + shared cache; H1 handoff | Session Replay, both panels |
+| 0:00–0:20 | The problem: role switches re-read everything | Session replay, A2 rows |
+| 0:20–0:45 | The idea: Activated LoRA + shared cache; H1 handoff | Session replay, A2 vs A5-H1 rows |
 | 0:45–1:20 | Live demo: replay → cost vs quality → context sweep | All three tabs |
-| 1:20–1:45 | Real results | Headline metrics strip |
-| 1:45–2:00 | Caveats and what's next | Cost vs Quality table, then logo |
+| 1:20–1:45 | Real results | The finding sentence at the top |
+| 1:45–2:00 | Caveats and what's next | Cost vs quality table, then logo |
 
 ## Script (~290 words, ~2:00 at a natural pace)
 
@@ -32,8 +32,8 @@
 
 **0:45 — Demo**
 
-> Same task, same session. On the left, every turn recomputes everything, in coral. On the right, almost
-> everything is reused, in cyan. Only new tokens and this small violet canonicalization get computed.
+> Same task, same session. In each turn, the top bar is per-role LoRAs: everything recomputed, in coral. The
+> bar under it is RoleKV: almost everything reused, in cyan. Only new tokens and this small violet canonicalization get computed.
 >
 > Cheap doesn't help if the code gets worse, so here's every method: cost across, pass rate up.
 >
@@ -64,19 +64,19 @@ Keep the MOCK DATA banner visible on screen while saying it.
 
 | # | Time | View | Action |
 |---|---|---|---|
-| 1 | 0:00 | Session Replay | Load the page on the real log. Crop to the A2 panel; press ▶ Replay so coral bars grow turn by turn. |
-| 2 | 0:20 | Session Replay | Widen to both panels. Reset, then ▶ Replay; pause on the turn where the A5-H1 bar is mostly cyan. Hover a turn to show the tooltip with prefill / reused / canon. |
-| 3 | 0:45 | Session Replay | Point the cursor at a violet segment ("canonicalized at handoff"). |
-| 4 | 0:58 | Cost vs Quality | Switch tab; hover the A2 point, then the A5-H1 point. |
-| 5 | 1:10 | Context Sweep | Switch tab; hover the largest-context point. |
-| 6 | 1:20 | Header metrics | Zoom on the four metric cards: ratio, saved/task, both pass rates with n. |
-| 7 | 1:45 | Cost vs Quality table | Show the run / machine column briefly (where the numbers come from). |
+| 1 | 0:00 | Session replay | Load the page on the real log. Press Play replay so the bars grow turn by turn; keep attention on the coral A2 rows. |
+| 2 | 0:20 | Session replay | Press Play replay again and pause on a reviewer turn, where the A5-H1 bar is mostly cyan under a full coral A2 bar. Hover a bar to show the tooltip with computed / reused / recomputed-at-handoff. |
+| 3 | 0:45 | Session replay | Point the cursor at a violet segment ("recomputed at handoff"). |
+| 4 | 0:58 | Cost vs quality | Switch tab; hover the A2 point, then the A5-H1 point. |
+| 5 | 1:10 | Context sweep | Switch tab; hover the largest-context point. |
+| 6 | 1:20 | Finding | Scroll to the top; zoom on the finding sentence (ratio, tokens per task, n, both pass rates). |
+| 7 | 1:45 | Cost vs quality table | Show the run / machine column briefly (where the numbers come from). |
 | 8 | 1:55 | Title | RoleKV wordmark + repo URL. |
 
 ## Recording checklist
 
-- [ ] `demo/data/events.jsonl` holds the validated real log; banner says **REAL DATA**; no `CHECK` tag on the headline.
+- [ ] `demo/data/events.jsonl` holds the validated real log; banner says **Real data**; no "Accounting check failed" warning under the finding.
 - [ ] Data validation shows 0 rejected lines and a clean accounting audit for the A2 and A5-H1 runs.
 - [ ] Task chosen for the replay is noted (task_id: `[[id]]`). Pick it for clarity, and say if it's typical.
 - [ ] Browser at 1440×900, zoom 100%, OS reduced-motion off (so the replay animates).
-- [ ] Numbers spoken in 1:20 match the metric cards exactly; run_ids recorded in README Results.
+- [ ] Numbers spoken in 1:20 match the finding sentence exactly; run_ids recorded in README Results.

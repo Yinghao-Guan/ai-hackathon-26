@@ -52,13 +52,13 @@ cd demo
 python -m http.server 8000     # open http://localhost:8000
 ```
 
-- **Session Replay:** A2 vs A5-H1 on the same task, turn by turn: tokens recomputed, reused from cache, and
+- **Session replay:** A2 vs A5-H1 on the same task, turn by turn: tokens recomputed, reused from cache, and
   canonicalized at handoff.
-- **Cost vs Quality:** prefill tokens per task vs pass rate for every method in the log.
-- **Context Sweep:** tokens saved per task as the shared context grows (≈1k / 3k / 4k / 8k).
+- **Cost vs quality:** prefill tokens per task vs pass rate for every method in the log.
+- **Context sweep:** tokens saved per task as the shared context grows (≈1k / 3k / 4k / 8k).
 
 With no real log present, it shows a clearly labelled mock fixture. To load real results, put the eval log at
-`demo/data/events.jsonl`, or use **Load event log…**, or drag a `.jsonl` file onto the page. Details,
+`demo/data/events.jsonl`, or use **Load event log**, or drag a `.jsonl` file onto the page. Details,
 metric definitions and the event-log assumptions are in [demo/README.md](demo/README.md).
 
 ## Metrics

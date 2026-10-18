@@ -28,10 +28,10 @@ canonicalization (H2), all on MBPP coding tasks where code is checked by real un
 
 The dashboard makes the cost visible:
 
-- **Session Replay** plays a Coder ↔ Reviewer session turn by turn, showing how many tokens each method
+- **Session replay** plays a Coder ↔ Reviewer session turn by turn, showing how many tokens each method
   recomputes, reuses or canonicalizes.
-- **Cost vs Quality** puts every method on one chart: prefill tokens per task against pass rate.
-- **Context Sweep** shows how the savings change as the shared context grows from ≈1k to ≈8k tokens.
+- **Cost vs quality** puts every method on one chart: prefill tokens per task against pass rate.
+- **Context sweep** shows how the savings change as the shared context grows from ≈1k to ≈8k tokens.
 
 Every headline number is computed in the browser from the loaded event logs; nothing is hardcoded.
 

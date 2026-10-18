@@ -2,15 +2,17 @@
 
 A static page that reads RoleKV event logs (JSONL, [CONTRACT.md §3](../docs/CONTRACT.md)) and shows three views:
 
-1. **Session Replay**: A2 and A5-H1 on the same task, one bar per turn, split into recomputed, reused and
-   canonicalized tokens. TTFT appears only for `machine == "4090"` rows.
-2. **Cost vs Quality**: mean `prefill_tokens_total` per task against pass rate, one point per method, plus a
+1. **Session replay**: A2 and A5-H1 on the same task. Each turn shows an A2 bar directly above an A5-H1 bar on
+   one scale, split into computed, reused and recomputed-at-handoff tokens, with each run's reviewer verdict.
+   First-token time appears only for `machine == "4090"` rows.
+2. **Cost vs quality**: mean `prefill_tokens_total` per task against pass rate, one point per method, plus a
    table. Only the main (~3k context) runs are used; sweep runs are excluded.
-3. **Context Sweep**: prefill tokens saved per task (A2 − A5-H1, paired by `task_id`) against the median
+3. **Context sweep**: prefill tokens saved per task (A2 − A5-H1, paired by `task_id`) against the median
    `ctx_tokens` of each context size.
 
-The headline numbers (prefill ratio, % fewer tokens, pass rates) are computed from whatever log is loaded.
-Nothing is hardcoded.
+The page opens with the result written as one sentence (prefill ratio, tokens per task, number of paired tasks
+and both pass rates), so the ratio is never shown without its sample size and quality. It is computed from
+whatever log is loaded; nothing is hardcoded.
 
 No build step, no dependencies. Charts are hand-written SVG, so the page works without network access
 (only the Google Fonts request needs a connection, and it falls back to system fonts).
@@ -33,7 +35,7 @@ The page picks its data in this order:
    until real logs arrive)
 3. `demo/mock/mock_events.jsonl`, the mock fixture, with a visible "No real log" note
 
-You can also use **Load event log…** or drag a `.jsonl` file onto the page. A loaded file **replaces** the
+You can also use **Load event log** or drag a `.jsonl` file onto the page. A loaded file **replaces** the
 current data; it is never merged.
 
 To show real results: concatenate the eval logs into `demo/data/events.jsonl` (e.g.
@@ -47,7 +49,7 @@ python demo/mock/make_mock.py    # rewrites demo/mock/mock_events.jsonl (seed 0,
 
 Every mock `run_id` starts with `mock-`. When a log contains any non-mock run, all `mock-` records are dropped
 and the banner says so, so mock numbers cannot leak into real results. In mock mode the page shows
-"MOCK DATA — NOT EXPERIMENTAL RESULTS" and tags the headline `MOCK`.
+"MOCK DATA — NOT EXPERIMENTAL RESULTS", a "Mock data" badge, and a note under the finding.
 
 The mock token accounting follows the runtime rules in TRACKS.md (A2 re-prefills everything; one-cache
 methods prefill only new tokens; A5-H1 recomputes header + body at each handoff). Pass rates and timings are
@@ -82,7 +84,7 @@ of a method qualify, the one with the most tasks wins (then 4090, then name), an
 
 **Accounting audit.** For every task, `prefill_tokens_total` must equal Σ over its turns of
 `prefill_tokens + canon_tokens`, and `n_turns` must equal the number of turn records. Failures appear in
-**Data validation**, and the headline gets a `CHECK` tag. If task totals demonstrably omit `canon_tokens`,
+**Data validation**, and an "Accounting check failed" warning appears under the finding. If task totals demonstrably omit `canon_tokens`,
 a separately labelled turn-derived ratio is shown next to (never instead of) the logged one.
 
 ## Assumptions about the contract (confirm with Lead)

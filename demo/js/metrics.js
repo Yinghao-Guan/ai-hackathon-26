@@ -148,7 +148,7 @@ export function isolateDataset(parsed) {
   const notes = [];
   if (parsed.accepted === 0) return { mode: "empty", turns: [], tasks: [], notes, droppedMock: 0 };
   if (realCount > 0) {
-    if (mockCount > 0) notes.push(`${mockCount} mock-prefixed records were ignored because this log also contains real runs.`);
+    if (mockCount > 0) notes.push(`${mockCount} mock-prefixed ${mockCount === 1 ? "record was" : "records were"} ignored because this log also contains real runs.`);
     return { mode: "real", turns: parsed.turns.filter(real), tasks: parsed.tasks.filter(real), notes, droppedMock: mockCount };
   }
   return { mode: "mock", turns: parsed.turns, tasks: parsed.tasks, notes, droppedMock: 0 };
