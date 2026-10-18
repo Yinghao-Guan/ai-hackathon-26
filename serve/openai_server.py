@@ -6,10 +6,15 @@ Endpoints: POST /v1/chat/completions (streaming or not) and GET /v1/models, on 1
 
 The model id picks the KV policy:
 
-| Model id         | Prompt KV                                                        |
-|------------------|------------------------------------------------------------------|
-| rolekv-reuse     | reuse the longest common token prefix with a kept session        |
-| rolekv-noreuse   | prefill the whole prompt on every request (per-role LoRA baseline) |
+| Model id                  | Prompt KV                                                          |
+|---------------------------|--------------------------------------------------------------------|
+| rolekv-reuse              | reuse the longest common token prefix with a kept session          |
+| rolekv-noreuse            | prefill the whole prompt on every request (per-role LoRA baseline) |
+| rolekv-{coder,reviewer}   | with --adapter-dir: that role's aLoRA, prefix reuse                |
+| rolekv-{role}-noreuse     | with --adapter-dir: that role's aLoRA, full prefill                |
+
+A role id appends the role header (the aLoRA invocation sequence) instead of the generation prompt, and
+only base-model KV is ever shared, so a role switch reuses the whole conversation before the header.
 
 Requests are rendered with the tokenizer's chat template (Qwen2.5 has a tool format), and Qwen's
 <tool_call>{json}</tool_call> blocks are parsed back into OpenAI `tool_calls`. Decoding is greedy unless
@@ -46,9 +51,12 @@ from pathlib import Path
 
 import torch
 
+from rolekv import roles
 from rolekv.cache import KVSession
 
 MODELS = {"rolekv-reuse": True, "rolekv-noreuse": False}  # model id -> reuse the prompt KV
+CONTEXT_WINDOW = 32768  # Qwen2.5-Coder-1.5B-Instruct's max_position_embeddings
+TOOL_OPEN, TOOL_CLOSE = "<tool_call>", "</tool_call>"
 
 
 @dataclass(frozen=True)
@@ -64,8 +72,6 @@ def model_specs(roles: Sequence[str] = ()) -> dict[str, ModelSpec]:
         specs[f"rolekv-{role}"] = ModelSpec(True, role)
         specs[f"rolekv-{role}-noreuse"] = ModelSpec(False, role)
     return specs
-CONTEXT_WINDOW = 32768  # Qwen2.5-Coder-1.5B-Instruct's max_position_embeddings
-TOOL_OPEN, TOOL_CLOSE = "<tool_call>", "</tool_call>"
 
 
 # --- Prompt rendering ------------------------------------------------------------
@@ -357,7 +363,7 @@ class Backend:
         self, prompt_ids: Sequence[int], *, reuse: bool, max_new_tokens: int,
         on_token: Callable[[list[int]], bool] | None = None, adapter: str | None = None, alora_start: int | None = None,
     ) -> Generation:
-        """Greedy decoding. `on_token(gen_ids)` runs after each token; returning False stops (client gone).
+        """Decode one reply. `on_token(gen_ids)` runs after each token; returning False stops (client gone).
 
         `adapter` (default: the backend's) is active for the whole request; an aLoRA applies from
         `alora_start` on, so the KV of every earlier position is the base model's and stays shareable.
@@ -516,8 +522,6 @@ class Handler(BaseHTTPRequestHandler):
         if spec.role is None:
             prompt_ids = render(backend.tokenizer, messages, tools, raw=srv.raw)
         else:  # the role header replaces the generation prompt; it is also the aLoRA's invocation sequence
-            from rolekv import roles
-
             prompt_ids = render(backend.tokenizer, messages, tools, raw=srv.raw, generation_prompt=False)
             alora_start = len(prompt_ids)
             prompt_ids += roles.invocation_tokens(backend.tokenizer, spec.role)
@@ -623,7 +627,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    from rolekv import roles
     from rolekv.runtime import load_model
 
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])

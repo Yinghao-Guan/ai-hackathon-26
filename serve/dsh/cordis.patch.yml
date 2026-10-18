@@ -28,6 +28,17 @@
             contextWindow: 32768
             maxTokens: 1024
             reasoningEfforts: false
+          # Served only when the server runs with --adapter-dir (RoleKV role adapters).
+          - id: rolekv-coder
+            name: RoleKV Coder aLoRA, shared KV
+            contextWindow: 32768
+            maxTokens: 1024
+            reasoningEfforts: false
+          - id: rolekv-reviewer
+            name: RoleKV Reviewer aLoRA, shared KV
+            contextWindow: 32768
+            maxTokens: 1024
+            reasoningEfforts: false
 - id: agent-default-model
   config:
     provider: rolekv

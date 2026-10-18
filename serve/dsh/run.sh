@@ -25,5 +25,6 @@ watchdog=$!
 wait "$pid"
 code=$?
 kill "$watchdog" 2>/dev/null
+wait "$watchdog" 2>/dev/null
 echo "dsh exit=$code wall_s=$(( $(date +%s) - start ))"
 ls -la
