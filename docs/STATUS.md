@@ -19,6 +19,30 @@
 
 ## Changes
 
+### 2026-10-18: headline eval: A2 vs A5-H1 on 100 MBPP tasks (4090), plus A0
+
+| | A0 (base, 4070 WSL2) | A2 (per-role LoRA) | A5-H1 (RoleKV) |
+|---|---|---|---|
+| pass@1 | 54/100 | 59/100 | **61/100** |
+| mean tokens computed / task | – | 7,013 | **2,197** (3.2× fewer; incl. 138 canon) |
+| median switch TTFT | – | 139 ms | **45 ms** |
+| mean GPU s / task | – | 5.56 | **4.29** |
+
+- **Quality:** paired on the same 100 tasks, both methods pass 51, only A2 passes 8, only A5-H1 passes 10, and
+  neither passes 31. The pass rates are statistically indistinguishable.
+- **Claim:** same quality at ~3× less prefill compute and ~3× faster role switches.
+- **Caveat to report: second-round reviews.**
+  - The A5-H1 Reviewer approved 41 of its 45 second reviews, and 35 of those tasks' final code failed.
+  - The A2 Reviewer revised 41 of its 43 second reviews and never approved failing code.
+  - The SFT data has no second reviews, so this is out-of-distribution behavior, and the two adapter kinds
+    react differently to it.
+  - Pass rates are unaffected because the final code is scored regardless. Next step: train on multi-round
+    reviews.
+- **Sources (on `peter`):**
+  - `eval/results/eval-1.5b-4090-202610180231.jsonl` (commit `7cba2b0`);
+  - A0: `eval/results/eval-1.5b-4070-202610180229.*` (commit `034fd5f`, run by Member A, audited by Lead).
+- **Still pending:** A5-H2, A3 and A1 on the 4090.
+
 ### 2026-10-18: the 4 bf16 test failures are bf16 noise, not a runtime bug
 
 On the 4090, `RT_DEVICE=cuda RT_DTYPE=bf16 uv run pytest` fails 4 tests: T1 (both roles), T3 and T2. Lead
