@@ -104,6 +104,13 @@ These facts come from the peft 0.21.2 source (`peft/tuners/lora/variants.py`). P
 - **No merging:** aLoRA adapters cannot be merged into the base weights.
 - **Gradient checkpointing:** with it enabled, a second aLoRA forward without a backward raises
   "Multiple invocations of PEFT forward hooks". Disable it before any inference.
+- **Slow decode:** PEFT's aLoRA forward selects the adapted rows with a boolean mask. That waits for the GPU
+  on every LoRA layer of every forward, and on the Mac GPU it made aLoRA decoding 6–15× slower than plain
+  LoRA.
+  - `rolekv/fast_alora.py` replaces it with an equivalent slice, which `tests/test_fast_alora.py` checks
+    against PEFT's version. `KVSession` installs it automatically.
+  - Any other aLoRA inference code should call `fast_alora.install()` first.
+  - Training does one forward per batch, so it doesn't need the patch.
 
 ## 5. Adapters (training → runtime)
 
@@ -154,7 +161,10 @@ rolekv/roles.py               segments, role headers, tokenization helpers    Le
 rolekv/cache.py               KVSession: one cache, chunked prefill, crop     Lead
 rolekv/runtime.py             role-switch engine for A0–A5                    Lead
 rolekv/costs.py               token and timing counters                       Lead
+rolekv/fast_alora.py          sync-free aLoRA forward (patches PEFT)          Lead
 tests/                        correctness tests                               Lead
+bench/cost_sweep.py           cost vs context length, forced conversation     Lead
+bench/results/                sweep logs (JSONL) + summary tables (in git)     Lead
 rolekv/tasks.py               MBPP loading, TASK segment, utils.py context    Member B
 train/build_dataset.py        teacher data generation                         Member B
 eval/testrun.py               sandboxed test runner (data and eval share it)  Member B

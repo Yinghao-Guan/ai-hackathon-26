@@ -26,7 +26,6 @@ from rolekv import roles
 
 DEVICE = torch.device(os.environ.get("RT_DEVICE", "cpu"))
 DTYPE = {"fp32": torch.float32, "bf16": torch.bfloat16}[os.environ.get("RT_DTYPE", "fp32")]
-TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 ADAPTERS = {
     "alora_coder": "coder",
     "alora_reviewer": "reviewer",
@@ -55,6 +54,8 @@ def tokenizer():
 def adapter_config(tokenizer, role: str | None):
     from peft import LoraConfig
 
+    from rolekv.runtime import TARGET_MODULES
+
     return LoraConfig(
         r=8,
         lora_alpha=8,
@@ -70,6 +71,10 @@ def model(tokenizer):
     from peft import get_peft_model
     from transformers import AutoModelForCausalLM
 
+    from rolekv import fast_alora
+
+    # References and sessions must use the same aLoRA forward; test_fast_alora.py checks it against PEFT's.
+    fast_alora.install()
     torch.manual_seed(0)
     base = AutoModelForCausalLM.from_pretrained(roles.DEV_MODEL, dtype=DTYPE, attn_implementation="sdpa").to(DEVICE)
     names = list(ADAPTERS)

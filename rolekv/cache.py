@@ -20,6 +20,7 @@ from contextlib import contextmanager, nullcontext
 import torch
 from transformers import DynamicCache
 
+from rolekv import fast_alora
 from rolekv.costs import kv_bytes
 
 
@@ -54,6 +55,7 @@ def clear_alora_hooks(model) -> int:
 
 class KVSession:
     def __init__(self, model, config=None):
+        fast_alora.install()  # PEFT's masked aLoRA forward syncs with the GPU on every layer
         self.model = model
         self.config = config if config is not None else model.config
         self.device = next(model.parameters()).device
