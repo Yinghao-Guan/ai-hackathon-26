@@ -167,17 +167,27 @@ label.btn:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; }
 /* ---------- The tape ---------- */
 .tape { position: relative; height: 18px; width: 100%; }
 .tape .seg { position: absolute; top: 0; bottom: 0; left: var(--l); width: var(--w); }
-.tape .paper { background: var(--sheet); box-shadow: inset 0 0 0 1px var(--rule-strong), 0 1px 2px rgba(21, 25, 31, 0.08), 0 3px 8px -4px rgba(21, 25, 31, 0.12); border-radius: 2px; }
+/* Snap both edges of every segment to whole pixels, so neighbours share one edge instead of blending
+   across a fractional pixel. Ink and the handoff underline keep at least 1px so a tiny re-read stays visible. */
+@supports (left: round(1%, 1px)) {
+  .tape .seg { left: round(var(--l), 1px); width: calc(round(var(--r), 1px) - round(var(--l), 1px)); }
+  .tape .seg.ink, .tape .seg.canon { width: max(1px, calc(round(var(--r), 1px) - round(var(--l), 1px))); }
+}
+/* The paper is fully covered by cache, ink and output, so it carries only the drop shadow; an outline here
+   would double up with the output outline on the right edge and show through seams. */
+.tape .paper { background: var(--sheet); box-shadow: 0 1px 2px rgba(21, 25, 31, 0.08), 0 3px 8px -4px rgba(21, 25, 31, 0.12); border-radius: 2px; }
 .tape .cache { background: var(--cache-tint); box-shadow: inset 0 -3px 0 var(--cache); border-radius: 2px 0 0 2px; }
 .tape .ink {
-  background: var(--recompute); min-width: 3px;
+  background: var(--recompute);
   clip-path: inset(0 0 0 0); transition: clip-path var(--ink-ms, 600ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
-.tape .written { box-shadow: inset 0 0 0 1.5px var(--written); min-width: 2px; transition: opacity 200ms var(--ease-out) var(--ink-ms, 0ms); }
+.tape .written { background: var(--sheet); box-shadow: inset 0 0 0 1.5px var(--written); transition: opacity 200ms var(--ease-out) var(--ink-ms, 0ms); }
 .tape .canon {
-  top: auto; height: 42%; background: var(--canon); min-width: 3px;
+  top: auto; height: 42%; background: var(--canon);
   clip-path: inset(0 0 0 0); transition: clip-path var(--canon-ms, 200ms) var(--ease-out) var(--ink-ms, 0ms);
 }
+/* The role header part of a handoff re-read: same mark, lighter, so the full underline aligns with the output. */
+.tape .canon.head { background: color-mix(in srgb, var(--canon) 38%, transparent); }
 .tape.pending .ink, .tape.pending .canon { clip-path: inset(0 100% 0 0); transition: none; }
 .tape.pending .written { opacity: 0; transition: none; }
 
@@ -345,8 +355,15 @@ body.presenting { overflow: hidden; }
 .flag.flip { transform: translateX(-100%); padding: 0 9px 0 0; border-left: 0; border-right: 2px solid var(--ink); }
 .flag.flip.reviewer { border-right-color: var(--hero); }
 .flag.reviewer b { color: var(--hero); }
+/* A label that would collide with its neighbour rises on a taller stem. */
+.map-flags.has-stack { height: 46px; }
+.flag.stack { height: 42px; }
+@supports (left: round(1%, 1px)) { .flag { left: round(var(--l), 1px); } }
 .tape.map.detail { height: 56px; }
-.tape.map.detail .written { box-shadow: inset 0 0 0 2px var(--written); }
+.tape.map.detail .written { background: transparent; box-shadow: inset 0 0 0 2px var(--written); }
+.tape.map.detail .written.joined { box-shadow: inset 0 2px 0 var(--written), inset 0 -2px 0 var(--written), inset -2px 0 0 var(--written); }
+/* Too narrow to read as a box: let the paper end speak for it (the tooltip still counts the tokens). */
+.tape .seg.written.narrow { box-shadow: none; }
 .map-scale { margin: 10px 0 0; font-size: 14px; color: var(--ink-3); }
 .beat-idea.drawn .tape.map { animation: unroll 1100ms var(--ease-out) both; }
 .beat-idea.drawn .tape.map.detail { animation-delay: 500ms; }
