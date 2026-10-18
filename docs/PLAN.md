@@ -124,8 +124,10 @@ T = when the team starts on this plan.
   - Adapters (tens of MB each) go in a private Hugging Face repo or a shared drive, not git.
 - **API key:** `.env` is gitignored. Lead puts the Anthropic API key on Member B's machine and sets a spend
   limit in the Anthropic Console.
-- **Environment:** uv + Python 3.11 with `torch`, `transformers`, `peft==0.21.2`, `datasets` and `anthropic`.
-  On Windows, native Python with the CUDA build of torch is enough.
+- **Environment:** install [uv](https://docs.astral.sh/uv/), then run `uv sync` in the repo. `pyproject.toml` and
+  `uv.lock` pin every version (Python 3.11, `peft==0.21.2`). Windows and Linux get the CUDA 12.6 build of torch;
+  macOS gets the default build. Native Windows is fine, no WSL needed. Run things with `uv run ...`, e.g.
+  `uv run pytest`.
 - **Coding agents:** before your Claude Code or Codex session starts work, have it read `docs/PLAN.md`,
   `docs/CONTRACT.md` and your section of `docs/TRACKS.md`.
 
