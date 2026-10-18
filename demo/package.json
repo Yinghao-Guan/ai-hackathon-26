@@ -1,0 +1,11 @@
+{
+  "name": "rolekv-demo",
+  "private": true,
+  "type": "module",
+  "description": "Static RoleKV dashboard. No dependencies; package.json only marks js/ as ES modules for Node tests.",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "mock": "python mock/make_mock.py",
+    "serve": "python -m http.server 8000"
+  }
+}
