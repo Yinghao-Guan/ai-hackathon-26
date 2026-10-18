@@ -24,9 +24,19 @@
 \usepackage{titlesec}
 \usepackage{xurl}
 \usepackage{tikz}
+\usepackage{pgfplots}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.18}
 \usepackage[hidelinks]{hyperref}
 
 \raggedbottom
+\clubpenalty=10000
+\widowpenalty=10000
+% Keep wide figures/tables with body text instead of sparse float-only pages.
+\renewcommand{\dbltopfraction}{0.85}
+\renewcommand{\textfraction}{0.10}
+\renewcommand{\dblfloatpagefraction}{0.85}
+\setcounter{dbltopnumber}{2}
 \titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
 \titlespacing*{\section}{0pt}{2ex plus .5ex minus .2ex}{.8ex plus .2ex}
@@ -43,61 +53,76 @@
 \maketitle
 
 \begin{abstract}
-This report studies when sharing key-value (KV) caches across role-specific
-adapters reduces the cost of multi-role coding agents. We examine the trade-offs
-among task quality, end-to-end latency, and memory under different context
-lengths, output lengths, and role-switching patterns.
-% Add measured findings only after the experiments have been completed.
+RoleKV uses activated LoRA (aLoRA) to share key-value (KV) caches between a
+Coder and a Reviewer, rebuilding each role's adapted states at handoff.
+We evaluate six methods using Qwen2.5-Coder-1.5B-Instruct. On 100 MBPP tasks
+with test-suite feedback, this H1 policy reduces mean processed prefill
+tokens by 68.7\% and median switch time to first token from 139 to 45\,ms
+relative to per-role LoRA with full recomputation. H1 passes 61 tasks versus
+59, without establishing quality superiority or equivalence. Fixed four-turn
+replays isolate the systems effect: H1 processes 3.6--3.9$\times$ fewer
+prefill tokens as context grows from 1.1k to 8.1k, while summed model-turn
+time changes from 4\% slower to 13\% faster. Shared-adapter and mismatched-cache
+baselines remain competitive. Among H1's 41 second-round approvals, 35
+programs fail the suite. The result is a measured gain in prefill volume
+and switch responsiveness, with a review failure that limits the
+interpretation of closed-loop time savings.
 \end{abstract}
 \vspace{1em}
 \end{@twocolumnfalse}]
 
 \section{Introduction}
-An iterative coding session accumulates more than a problem statement: each
-attempt adds code, test output, and feedback that later invocations must
-consider. Execution-guided refinement can improve generated programs
-\cite{chen2023selfdebug}, motivating a workflow in which a Coder proposes a
-solution and a Reviewer decides whether it needs revision. One way to
-specialize these roles is to train a LoRA adapter for each on a shared
-backbone \cite{hu2022lora}. Although this shares most model weights, the
-adapters can produce incompatible key-value (KV) states for the same text
-\cite{greenewald2025alora}. A role switch can consequently require processing
-shared history under the incoming adapter or maintaining a private cache for
-each role.
+In a Coder--Reviewer loop, one role writes a program and another inspects
+the code and execution feedback before requesting a revision.
+Execution-guided refinement can improve generated programs
+\cite{chen2023selfdebug}, but every attempt adds history for both roles to
+read. LoRA adapters specialize these roles on a shared backbone
+\cite{hu2022lora}. Sharing weights does not guarantee compatible key-value
+(KV) states: the same text can produce different caches under different
+adapters \cite{greenewald2025alora}. Our full-recomputation baseline therefore
+reprocesses the accumulated history under the incoming role's adapter.
 
-Cross-adapter cache sharing offers several ways to reduce this duplication.
-Activated LoRA (aLoRA) leaves pre-invocation states unchanged, while ICaRus
-uses a shared logical encoder to maintain reusable states during generation
-\cite{greenewald2025alora,woo2026icarus}. Approximate approaches such as
-LRAgent instead share cache components across adapted models
-\cite{jeon2026lragent}. These methods establish mechanisms for reuse, but
-evaluating them in a coding loop also requires accounting for the work of
-maintaining a reusable representation and the quality of the resulting
-programs.
+We build RoleKV on activated LoRA (aLoRA), an existing mechanism that leaves
+states before an invocation unchanged \cite{greenewald2025alora}. Each
+role's adapter activates at its header. At the next handoff, our H1 policy
+rebuilds the previous role's adapted span with base weights, preserving one
+shared base-model prefix (Figure~\ref{fig:cache-handoff}). H2 skips that
+reconstruction and keeps mixed-adapter states. The engineering challenge
+is to preserve activation and cache semantics through decoding while
+accounting for the work saved and the work added at handoff.
 
-The balance depends on the workload and the comparison baseline. A long
-shared context creates repeated prefill work, whereas long role outputs add
-decoding cost and may require substantial recomputation at handoff. Private
-warm caches can avoid rebuilding a returning role's entire history when
-memory permits; a single multi-role adapter avoids cross-adapter
-incompatibility. Moreover, a method that approves incorrect code early can
-appear cheap simply because it stops sooner. These considerations motivate
-our central question: \emph{under task-quality and memory constraints, when
-does cross-adapter KV cache sharing reduce the actual cost of completing a
-coding task?}
+Our question is \emph{when does cross-adapter KV sharing reduce model cost
+without compromising coding-task quality?} A long common prefix creates
+more repeated prefill, while decoding and handoff reconstruction can offset
+the saving. A premature approval can also make a session cheaper by stopping
+it early. We separate these effects through three contributions:
 
-We plan a controlled study of a small-model Coder--Reviewer loop on MBPP
-function-level tasks \cite{austin2021mbpp}, augmented with shared code context.
-The study will compare aLoRA handoffs that rebuild base-model states (H1) or
-retain adapted states (H2), alongside full recomputation, private warm caches,
-and a single multi-role adapter. Numerical checks against full recomputation
-with the same aLoRA weights will verify H1's cache correctness. Fixed-trace
-measurements will isolate processing costs as context length, output length,
-and switch frequency vary; closed-loop runs will assess final correctness,
-repair, regression, and Reviewer decisions. The intended contribution is an
-empirical characterization of when saved prefill work translates into lower
-task cost at acceptable quality, with canonicalization, decoding, and tool
-execution included in the accounting.
+\begin{itemize}
+  \item \textbf{An instrumented runtime:} six cache/adapter policies,
+    explicit aLoRA activation through decoding, and logged token accounting,
+    including handoff reconstruction, used by a replay dashboard.
+  \item \textbf{Two complementary evaluations:} fixed four-turn traces
+    across four context lengths, and 600 closed-loop sessions on 100 paired
+    MBPP tasks \cite{austin2021mbpp} using five trained adapters.
+  \item \textbf{Benefits and failure modes:} large prefill and
+    switch-latency gains coexist with modest context-dependent model-time
+    gains, competitive simpler baselines, and a second-round review failure.
+\end{itemize}
+Our contribution is the implementation and empirical study of these trade-offs.
+The underlying aLoRA sharing mechanism comes from prior work.
+
+\begin{figure*}[t]
+\centering
+\input{figures/cache_handoff.tex}
+\caption{Cache preparation on returning to the Coder. Blue spans reuse
+existing states; orange spans require incoming-role prefill; purple spans
+are rebuilt with base weights. H1 has already canonicalized Coder~1 at the
+preceding handoff and now rebuilds Reviewer~1. Equal-width spans are
+schematic, not token counts; boundary tokens are omitted. The private warm
+cache policy is conceptual and not evaluated. H2's tool states are also
+conditioned on the retained adapted history.}
+\label{fig:cache-handoff}
+\end{figure*}
 
 \section{Background and Related Work}
 \label{sec:background}
@@ -179,42 +204,45 @@ H1 restores the base prefix expected by the incoming aLoRA. These distinctions
 separate the choice of reusable representation from the cost of maintaining it.
 
 \subsection{Scope and Measurement}
-Prior work establishes both exact and approximate paths to cross-adapter
-sharing. We examine its benefit in a small-model Coder--Reviewer workload,
-focusing on aLoRA handoffs. H1 rebuilds the previous role's
-adapted states with base weights; H2 retains them, trading that work for a
-mismatch with our base-prefix training setup. The question is how shared
-context length, role-output length, and switching frequency affect the
-quality--cost trade-off, including canonicalization and decoding overhead.
-
-We plan to compare H1 and H2 with full recomputation, private warm caches,
-and a single multi-role adapter. Controlled traces isolate cache-processing costs,
-while closed-loop runs capture how code, review decisions, and session length
-change together. PReCache likewise distinguishes controlled efficiency traces
-from actual agent trajectories \cite{jeon2026precache}. We use both forms of
-measurement to test when savings in repeated prefill translate into lower task
-cost at acceptable quality. The other sharing systems reviewed here provide
-context for this study. Section~\ref{sec:methods} describes the planned protocol.
+Prior work establishes exact and approximate paths to cross-adapter sharing.
+We evaluate aLoRA handoffs in a small-model Coder--Reviewer loop, including
+the cost of reconstruction and decoding. Fixed transcripts isolate systems
+cost, while closed-loop runs reveal changes in generated code, review
+decisions, and session length. PReCache also distinguishes controlled
+efficiency traces from actual trajectories \cite{jeon2026precache}.
+Our baselines test full recomputation, one shared adapter, and mismatched
+reuse; the other systems reviewed here provide context rather than direct
+experimental comparisons.
 
 \section{Research Questions}
 \begin{enumerate}
-  \item How do shared context length, role output length, and switch frequency
-    affect the benefit of sharing?
-  \item How do cache handoff policies affect task quality and total task cost?
-  \item When is sharing preferable to retaining a private cache for each role
-    or using a single multi-role adapter?
+  \item How does shared-context length affect prefill volume, switch latency,
+    and model-turn time when the conversation is fixed?
+  \item How do cache handoff policies affect task quality and model cost?
+  \item Do per-role adapters and exact sharing offer a measured advantage
+    over one shared adapter or mismatched-cache reuse in this workload?
 \end{enumerate}
 
 \section{Methods and Experimental Design}
 \label{sec:methods}
-We distinguish the data and runtime present in the inspected repository from
-the training recipe and comparisons still awaiting run-level confirmation.
-Results will identify the checkpoints, feedback protocol, and policies actually
-evaluated. The source and data hashes used for this description are recorded
-in \path{report/methods_manifest.json}.
+We use two complementary experiments: fixed-output traces that hold behavior
+constant, and closed-loop evaluation in which each method generates its own
+trajectory. Training records, event logs, and their hashes are indexed in
+\path{report/methods_manifest.json} and \path{report/results_summary.json}.
+All primary results use an RTX 4090 Laptop GPU with 16\,GB under WSL2, bf16
+inference, greedy decoding, and the same model snapshot
+\texttt{2e1fd397}. The recorded environment uses PyTorch 2.14.1+cu126,
+Transformers 5.20.1, and PEFT 0.21.2. An additional 4070 base-model run is
+excluded from the primary comparison.
+
+The \href{https://github.com/Yinghao-Guan/ai-hackathon-26}{project repository}
+includes the runtime, training and evaluation scripts, recorded runs, and a
+dashboard that replays the event logs. The offline report script verifies
+paired task sets and accounting totals and regenerates the result tables
+and plots without invoking the model.
 
 \subsection{Tasks and Shared Context}
-The target model is Qwen2.5-Coder-1.5B-Instruct
+The evaluated model is Qwen2.5-Coder-1.5B-Instruct
 \cite{hui2024qwen25coder}; the 0.5B variant is used for development. The task
 loader uses MBPP's \texttt{full} configuration \cite{austin2021mbpp}, pooling
 the train, validation, and prompt splits for data generation and selecting
@@ -228,7 +256,9 @@ task; selection is deterministic from a hash of the task ID. These functions
 provide shared text to process, not evidence that the task requires a real
 repository. In the current SFT exports, TASK segments range from 1,276 to
 2,497 development-tokenizer tokens, with a median of approximately 1,809.
-The added context and evaluation subset are study-specific augmentations.
+For the 100 evaluated tasks, logged TASK lengths range from 1,280 to 2,710
+tokens, with a median of 1,804. The added context and evaluation subset are
+study-specific augmentations.
 
 \subsection{Teacher Trajectories and SFT Examples}
 The generator requests a solution or an intentionally faulty first attempt
@@ -258,10 +288,10 @@ are 2,036 and 2,060.5 tokens for Coder and Reviewer, respectively; the maximum
 is 2,932. These lengths were checked locally using the development tokenizer.
 Full data hashes appear in the manifest and \texttt{data/README.md}.
 
-\subsection{Adapter Training Recipe}
-The team recipe specifies role-specific standard LoRA and aLoRA adapters,
-plus a shared LoRA trained on both roles for A1. Table~\ref{tab:training-recipe}
-records the prescribed settings. Only the seven attention and MLP linear
+\subsection{Adapter Training}
+We train role-specific standard LoRA and aLoRA adapters,
+plus a shared LoRA on both roles for A1. Table~\ref{tab:training-recipe}
+records the settings in the saved training runs. Only the seven attention and MLP linear
 projections are targeted; embeddings and the language-model head are excluded
 to preserve the base-prefix sharing assumptions. Loss is computed only on
 the role's target tokens.
@@ -271,30 +301,41 @@ the role's target tokens.
 \small
 \begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.43\columnwidth}>{\raggedright\arraybackslash}X@{}}
 \toprule
-Setting & Prescribed value \\
+Setting & Recorded value \\
 \midrule
 Standard LoRA / aLoRA rank & 16 / 32 \\
 Scaling $\alpha$ & $2r$ \\
 Targets & q, k, v, o, gate, up, down projections \\
 Learning rate / epochs & $2\times 10^{-4}$ / 2 \\
 Maximum sequence length & 4,096 tokens \\
-Precision / checkpointing & bf16 / gradient checkpointing \\
-Reviewer REVISE multiplicity & $3\times$ (team run setting) \\
+Training precision & bf16 base / fp32 adapters \\
+Inference precision & bf16 base and adapters \\
+Dropout / weight decay & 0.05 / 0 \\
+Optimizer & AdamW, $\beta=(0.9,0.999)$, $\epsilon=10^{-8}$ \\
+Microbatch / accumulation & 1 row / 8 rows \\
+Schedule & 5\% linear warm-up, then linear decay \\
+Seed / packing / clipping & 0 / none / none \\
+Checkpointing & Non-reentrant \\
+Reviewer REVISE multiplicity & $3\times$ \\
 \bottomrule
 \end{tabularx}
-\caption{Training recipe from the team documents, pending verification against
-actual training arguments and checkpoint configurations.}
+\caption{Training settings verified from all five saved run records.
+LoRA and aLoRA ranks differ, so the comparison is not parameter-matched.}
 \label{tab:training-recipe}
 \end{table}
 
 REVISE oversampling repeats those Reviewer examples in the training input,
 including when training the shared adapter; it leaves the exported data files
-unchanged. The inspected checkout does not contain the training script,
-checkpoint configurations, or training logs. Optimizer, batching, scheduling,
-seeds, completed epochs, and actual hyperparameters must therefore be reported
-from the training runs before quality results are attributed to this recipe.
-The unequal prescribed ranks also preclude describing the comparison as
-parameter-matched.
+unchanged. Each Coder adapter uses 338 rows per epoch and 85 optimizer
+updates over two epochs. Each Reviewer uses 396 rows after oversampling and
+99 updates; the shared adapter uses 734 rows and 184 updates. Loss averages
+target tokens within each row and then averages rows in an accumulation
+window, without sequence packing. The training records reject no input rows,
+report zero reload error for all five adapters, and record zero pre-header
+logit difference for both aLoRAs on their saved probe. The records identify
+training commit \texttt{79e1f6a}; weights are loaded from
+\path{adapters/1.5b}. Each aLoRA contains 36.9 million trainable parameters,
+versus 18.5 million for each standard LoRA.
 
 \subsection{Session Protocol and Test Feedback}
 The runtime follows Coder $\rightarrow$ tool output $\rightarrow$ Reviewer.
@@ -340,24 +381,15 @@ All aLoRA decode steps receive explicit activation offsets so that adaptation
 remains active when the input chunk no longer contains the invocation header.
 A0 uses the base model, A1 uses one shared standard LoRA, and A3 retains
 mixed-adapter history with standard role LoRAs; these policies also have
-runtime implementations. H1 and H2 will use the same aLoRA weights.
+runtime implementations. H1 and H2 use the same aLoRA weights. A0 and A1
+retain their compatible single-model cache; A3 switches standard role LoRAs
+without rebuilding the previous role's states.
 
 Inference uses PEFT 0.21.2 with scaled dot-product attention. A contiguous-slice
 aLoRA path and persistent activation-offset hooks replace masked row selection
 and per-call hook registration. Timings characterize this optimized runtime;
-numerical checks must cover activation behavior and cache policy at the
-measured precision.
-
-\begin{figure*}[tbp]
-\centering
-\input{figures/cache_handoff.tex}
-\caption{Cache preparation on returning to the Coder. Equal-width columns
-denote logical spans, not measured cost; boundary tokens are omitted. H1
-rebuilds Reviewer~1's adapted span after Coder~1 was canonicalized at the
-preceding handoff. H2 keeps mixed-adapter KV. Private warm caches (proposed)
-also retain a separate Reviewer cache.}
-\label{fig:cache-handoff}
-\end{figure*}
+correctness checks cover activation behavior, cache restoration, positions,
+and token accounting.
 
 Private warm caches remain unimplemented in the inspected runtime. The
 proposed policy keeps a valid prefix per standard role adapter and computes
@@ -365,78 +397,280 @@ missing history on return. Its comparison with A2 must use identical adapters
 and count all resident caches. Figure~\ref{fig:cache-handoff} illustrates
 policies independently of checkpoint quality.
 
-A full-recomputation run of the \emph{same aLoRA} will serve as H1's numerical
-correctness reference, using identical input histories. Cache states and
-logits will be checked at handoffs and decode steps with precision-appropriate
-tolerances before timing is trusted. Ordinary LoRA is a separate task-quality
-reference, not an equivalence target. H2 intentionally changes cache semantics
-and will be assessed for quality rather than required to pass H1 equivalence.
+The test suite compares cached logits with a full forward under the
+\emph{same aLoRA}, and canonicalized KV with a fresh base-model forward.
+These tests use the 0.5B development model and nonzero random rank-8 adapters.
+The recorded pre-evaluation gate passed 60/60 tests in fp32 on CUDA. Four bf16
+equivalence comparisons failed their tolerances in the development tests,
+as documented in the run notes. Consequently, exact sharing describes H1's
+representation invariant, not bitwise equality of all bf16 schedules or
+completed equivalence validation of the trained 1.5B deployment. Ordinary
+LoRA is a task-quality reference rather than H1's equivalence target. H2
+retains mixed states and intentionally does not satisfy the H1 invariant.
 
 \subsection{Fixed-Trace System Measurements}
-We will replay identical role outputs and tool segments for every cache policy
-to isolate processing costs. Controlled sweeps will vary shared-context length,
-output length, and the number of role switches within the session protocol.
-These prescribed traces cannot establish task quality. Measurements will count
-all computed prefill tokens, including H1 canonicalization, and report
-post-switch time to first token and decoding time per token. Repeated runs will
-alternate policy order on the same GPU after warm-up and report timing spread.
+The cost sweep replays one four-turn conversation: faulty Coder output,
+\texttt{REVISE}, repaired Coder output, and \texttt{APPROVE}, with fixed tool
+text. It generates 197 tokens per session, including stop tokens, and makes
+three role switches. We vary TASK length across 1,101, 2,100, 4,095, and 8,114
+tokens, comparing A2, H1, and H2 over five repeats each. Methods are
+interleaved after warm-up in a fixed order. The sweep uses untrained adapters
+at the measured ranks and precision, so it measures execution cost rather
+than learned behavior. Its forced \texttt{passed} flag denotes replay
+completion and is excluded from quality analysis. Output length and switch
+count are fixed; their independent effects are not evaluated.
 
-Memory results will distinguish logical cache size at turn boundaries from
-the measured runtime peak. Private-cache comparisons will count every live
-cache under the same GPU memory budget. Memory savings will not be inferred
-from prefill-token savings or claimed against A2 solely because H1 shares a
-prefix.
+Processed prefill tokens sum new prefill and canonicalization tokens, counting
+every non-decoding token position fed to the model. This is a token-volume
+metric rather than measured FLOPs. Switch TTFT is the median over every turn
+after turn zero, including H1 reconstruction. Model-turn time sums synchronized
+turn durations, including decoding and host overhead inside each turn, but
+excludes tool execution, final scoring, and model loading. We report median
+session time and its observed range across the five repeats. The logged
+\texttt{peak\_kv\_mb} is the maximum logical KV tensor size at turn boundaries,
+not peak device allocation; we make no measured memory-saving claim.
 
 \subsection{Quality and Reviewer Behavior}
-In a separate evaluation, each method will generate its own code and reviews
-on the same task set. We will report initial-Coder and final-code pass rates,
-turn counts, actual role-switch counts, and invalid or truncated outputs.
-For diagnostic scoring, intermediate code may additionally be evaluated after
-the run against the full test suite, without exposing these additional
-post-hoc outcomes to either role. This does not make the suite held out when
-the all-assert feedback protocol is used.
-The following quantities will be reported with their numerator and denominator:
-\begin{itemize}
-  \item \textbf{Task repair rate:} initially failing tasks whose final code
-    passes, divided by all initially failing tasks.
-  \item \textbf{Task regression rate:} initially passing tasks whose final code
-    fails, divided by all initially passing tasks.
-  \item \textbf{False-approval rate:} approvals of code that passes the first
-    assert but fails the full suite, divided by approvals of code passing that
-    first assert. Under all-assert feedback, this measures review behavior
-    with suite-derived feedback, not hidden-test generalization.
-\end{itemize}
-Undefined rates will be marked as such when their denominator is zero.
-Turn-level repair and regression analysis will additionally examine code pairs
-separated by a revision request, reporting how many cases reached that stage.
-We will keep stopped, invalid, and failed sessions in the task-level results
-rather than compare only sessions that complete the longest loop.
+Each of the six methods generates one greedy trajectory for each of the same
+100 tasks. The log contains all 600 final task outcomes and 1,923 model turns.
+We report final-code full-suite pass counts, mean turn counts, generated token
+counts, and invalid or truncated outputs, retaining stopped and failed
+sessions. The code may undergo up to two revisions, so the final task pass
+rate is a session-level success measure rather than single-attempt Coder
+accuracy; we avoid interpreting the source summaries' \texttt{pass@1} label
+as unrevised code-generation performance.
+
+For second-round reviews, we count approvals and the fraction whose final
+code fails the suite. An approval terminates the session without changing
+the reviewed code, so the final outcome scores that approval directly.
+This denominator includes all second-round approvals, without conditioning
+on first-assert success. No second review occurs in the SFT trajectories.
+Initial accuracy, repair, regression, and visible-test-conditioned approval
+rates require scoring intermediate code, whose outcomes are not stored in
+the event log; they are outside this analysis.
 
 \subsection{Cost--Quality Interpretation}
-Closed-loop methods may take different trajectories, so fewer processed tokens
+Closed-loop methods take different trajectories, so fewer processed tokens
 can reflect premature approval or failure rather than a better cache policy.
-We will interpret cost jointly with task success and Reviewer behavior, using
-paired task comparisons. Model-turn time (the sum of logged turn durations)
-will be distinguished from end-to-end task wall time, which also includes tool
-execution and orchestration. Lower prefill counts alone will not be reported
-as an end-to-end speedup. Uncertainty and sample counts will accompany quality
-differences; a small observed gap will not establish equivalence.
+We interpret cost jointly with task success and Reviewer behavior, using a
+paired A2--H1 success comparison. We report Wilson 95\% intervals for their
+individual success proportions and an exact two-sided McNemar test on
+discordant tasks. These quantify task-level sampling uncertainty; they do
+not measure variation across training seeds or decoding runs. A small observed
+gap does not establish equivalence. Tool-inclusive task wall times are not
+stored, so every reported time comparison concerns model turns.
 
 \section{Results and Analysis}
-% Add measured results with hardware, configuration, seeds, and uncertainty.
-% Plot the regimes in which each strategy is preferable.
-% Do not interpret fewer prefill tokens as an automatic end-to-end speedup.
+\label{sec:results}
+
+\subsection{Fixed Traces: Savings Depend on Context}
+Figure~\ref{fig:cost-scaling} separates prefill volume, role-switch latency,
+and summed model-turn time while holding generated text constant. H1 processes
+1,576 versus A2's 5,599 prefill tokens at 1.1k context, and 8,589 versus
+33,651 at 8.1k: reductions of 3.55$\times$ and 3.92$\times$, respectively.
+Every H1 session includes 221 canonicalization tokens. H2 avoids those
+221 tokens, but retains adapted states rather than restoring the base prefix.
+The growing ratio follows from amortizing the shared prefix over four turns;
+it does not imply that all model computation is reduced by the same factor.
+
+\begin{figure*}[t]
+\centering
+\input{figures/cost_scaling.tex}
+\caption{Fixed four-turn replay on the RTX 4090 Laptop GPU. All methods
+generate the same 197 tokens and make three role switches, using untrained
+adapters. Prefill volume includes canonicalization. TTFT is the median over
+the 15 post-initial turns across five repeats. Model time is the median sum
+of turn durations per session; whiskers show the minimum and maximum of
+five sessions, not confidence intervals. Panel (c) uses a truncated vertical
+axis to show the crossover.}
+\label{fig:cost-scaling}
+\end{figure*}
+
+A2's median switch TTFT rises from 94 to 583\,ms, whereas H1 stays between
+47 and 50\,ms across the four contexts. The resulting latency ratio grows
+from 1.89$\times$ to 11.71$\times$. This is the clearest measured benefit
+of sharing: the incoming role avoids reprocessing a growing common prefix.
+
+The model-time benefit is substantially smaller. At 1.1k, H1 takes 6.84\,s
+versus 6.56\,s for A2, about 4\% slower. At 2.1k the medians are 6.89 and
+6.82\,s. H1 becomes slightly faster at 4.1k (7.01 versus 7.19\,s), and is
+13\% faster at 8.1k (7.32 versus 8.40\,s). At that longest context, observed
+session ranges are 7.16--7.55\,s for H1 and 8.36--8.46\,s for A2. Median
+decode time is approximately 34.2--34.4\,ms per token for H1, compared with
+31.5--31.9\,ms for A2. Residual aLoRA execution overhead therefore offsets
+some prefill savings. The crossover is specific to this trace, hardware,
+adapter configuration, and implementation; it is not a universal context
+threshold.
+
+\subsection{Closed-Loop Quality and Model Cost}
+Table~\ref{tab:eval-summary} reports all six methods on the same 100 tasks.
+H1 passes 61 tasks and A2 passes 59. Paired by task, both pass 51, only A2
+passes 8, only H1 passes 10, and neither passes 31. The exact two-sided
+McNemar $p$-value is 0.815. Individual Wilson 95\% intervals are
+49.2--68.1\% for A2 and 51.2--70.0\% for H1. These results provide no
+detected success-rate difference on this sample, but do not establish
+equivalence or non-inferiority.
+
+\begin{table*}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\input{tables/eval_summary.tex}
+\caption{Closed-loop results on 100 paired MBPP tasks per method, all on
+the 4090 with test-suite feedback. Pass counts score the final code after
+up to two revisions. Prefill, canonicalization, model time, turns, and
+generated tokens are means per task; canonicalization is included in
+prefill. TTFT is the pooled median over turns after turn zero. Model time
+excludes tools, final scoring, and loading. Generated tokens include stop
+tokens.}
+\label{tab:eval-summary}
+\end{table*}
+
+H1 averages 2,197 processed prefill tokens per task, including 138
+canonicalization tokens, versus 7,013 for A2: 68.7\% fewer. Median switch
+TTFT falls from 139.4 to 45.4\,ms, a 3.07$\times$ ratio. Mean model-turn
+time falls from 5.56 to 4.29\,s, or 22.8\%. This last reduction combines
+cache behavior with different generated trajectories. H1 averages 2.94
+turns and 124.8 generated tokens, compared with A2's 3.27 turns and 170.2
+tokens. It therefore cannot be attributed wholly to caching. The fixed
+replay provides the cleaner systems comparison.
+
+The other baselines also constrain the interpretation. A1, which uses one
+shared standard LoRA and a compatible cache, passes 61 tasks with 2,060
+prefill tokens per task. A3, which retains mismatched per-role LoRA states,
+passes 62 with 2,061 prefill tokens. H2 passes 60, with lower prefill volume
+than H1 but the same second-round review weakness discussed below. Thus,
+this workload does not demonstrate a quality advantage for per-role
+adapters over a shared adapter, or for exact over mismatched cache reuse.
+The mechanistic distinction between H1 and A3 remains important, but it
+does not substitute for an observed task-quality advantage.
+
+\subsection{Second-Round Review Failure}
+Table~\ref{tab:reviewer-summary} reveals a failure hidden by aggregate task
+pass rates. H1 approves 41 of 45 second reviews; 35 of those 41 approvals
+(85.4\%) concern code that fails the suite. H2 approves 39 of 45, including
+34 failures (87.2\%). A2 approves only 2 of 43 second reviews, and neither
+approved program fails; A1 and A3 likewise have no failing second-round
+approvals in these runs. Zero observed errors on their small approval
+denominators should not be read as guaranteed reviewer reliability.
+
+\begin{table}[!t]
+\centering
+\small
+\input{tables/reviewer_summary.tex}
+\caption{Second-round Reviewer decisions. ``Failed / approved'' counts
+suite-failing final programs among second-round approvals. A dash denotes
+no approvals. These are conditional counts for the tasks that reached this
+round, not matched subsets across methods.}
+\label{tab:reviewer-summary}
+\end{table}
+
+The SFT trajectories never include a review after a repair, making this
+stage outside the training distribution. Both aLoRA policies show the
+failure, so canonicalization alone is unlikely to explain it. Training
+coverage is a plausible contributor, but establishing a cause requires
+controlled retraining or other ablations. Because \texttt{APPROVE} stops
+the session, premature approval also removes a possible final repair turn.
+The final-code scoring remains valid for the observed session, but the
+results do not show how many of those failures another repair would fix.
+
+\par\medskip
+\noindent\begin{minipage}{\columnwidth}
+\textbf{Case study: MBPP task 135.}
+The H1 Coder repeats the same return expression for
+\texttt{hexagonal\_num} after a revision request, yet the second Reviewer
+approves it. The expressions and verdicts below come from the recorded turns:
+\begin{quote}
+\small
+\input{tables/case_study.tex}
+\end{quote}
+The final program fails the suite. A2 returns $n(2n-1)$ and passes after its
+first review. H1 processes 2,212 prefill tokens including 133 reconstruction
+tokens, versus A2's 3,818, but its cheaper session ends in failure. This
+selected example illustrates a false approval after unchanged code;
+it does not estimate the frequency of such failures.
+\end{minipage}
+\par\medskip
+
+Format errors differ from approval errors. Every adapted Reviewer emits a
+parseable verdict, despite 15--46 truncated Reviewer turns per method.
+A0 emits 54 \texttt{INVALID} verdicts among 156 reviews and never approves;
+it truncates 90 Reviewer and three Coder turns. A verdict parsed from the
+first line can remain valid when its explanation reaches the token cap.
+Session behavior therefore needs to accompany success and cost.
 
 \section{Limitations and Discussion}
-% Discuss synthetic context, task/model coverage, and generalization.
-% Do not infer unpublished implementation details of commercial coding agents.
+\subsection{What the Experiments Establish}
+The answer depends on what is held fixed. With identical generated text,
+longer shared context increases H1's advantage in switch latency, while
+decode overhead limits total model-time savings. With generated
+trajectories, similar final pass counts conceal different review decisions
+and opportunities for repair. Finally, A1 and A3 remain competitive, so
+per-role specialization and exact sharing have no demonstrated quality
+premium in this benchmark.
+
+H1's base-prefix invariant provides a clear cache contract for independently
+trained role adapters. Its engineering value and the measured prefill savings
+stand alongside the quality and numerical-validation limits described above;
+they do not establish that H1 is the best quality--cost policy overall.
+
+\subsection{Coverage and Measurement Limits}
+The study uses one 1.5B backbone, two roles, one training seed, and one
+greedy run per method on 100 function-level tasks. The added reference
+functions create shared context but do not turn MBPP into repository-level
+software engineering. Full-suite tool feedback further limits comparison
+with protocols that withhold tests. Different ranks and parameter counts
+also prevent attributing quality differences solely to cache policy when
+comparing standard LoRA with aLoRA.
+
+The fixed sweep uses one synthetic transcript and untrained adapters.
+Five timing repeats describe local variation, not run-to-run variation
+across machines or sessions with different text. The closed-loop runs
+execute methods in separate blocks rather than repeated randomized order.
+All primary timings are from one laptop GPU under WSL2. The separate
+4070 A0 result is 54/100 rather than the 4090's 51/100, reinforcing the need
+to keep the main comparison on one machine. We do not report tool-inclusive
+wall time, measured peak GPU
+memory savings, or an energy reduction.
+
+Private warm caches are illustrated but not implemented or timed. Output
+length, role count, and switch frequency are not independently swept.
+Exact sharing may lose its time advantage when role outputs become longer,
+because reconstruction grows with the adapted span, but this dependence
+has not been measured here. The current evidence cannot locate a general
+break-even boundary against a memory-resident private cache.
+
+\subsection{Next Experiments}
+The first priority is to add multi-round review trajectories and repeat
+evaluation with several training seeds, while separately scoring initial
+code, repairs, and regressions. A matched-weight full-recomputation aLoRA
+baseline at the deployed precision would isolate H1's cache handling from
+adapter training and strengthen numerical validation. A factorial trace
+sweep over output length and switch count, an implemented private-cache
+baseline, and tool-inclusive timing would then test the remaining cost
+questions. Evaluations with tests withheld from feedback and larger,
+repository-level workloads are needed before generalizing the quality
+findings beyond this setup.
 
 \section{Conclusion}
-% Summarize supported findings and practical guidance after evaluation.
+Cross-adapter KV sharing reduces repeated prefill and role-switch latency
+in the RoleKV Coder--Reviewer runtime. On fixed four-turn traces, H1's switch
+latency stays near 50\,ms while full recomputation grows to 583\,ms at
+8.1k context; model-time savings emerge only as the shared prefix becomes
+large enough to offset decoding overhead. On 100 closed-loop tasks, H1
+passes 61 versus A2's 59, with no detected paired success-rate difference,
+but frequent false approvals in second reviews weaken the interpretation
+of its lower task cost. Shared-adapter and mismatched-cache baselines are
+also competitive. The practical lesson is to measure reconstruction,
+decoding, and review behavior together: a lower prefill count is most useful
+when it reduces a substantial part of the session's work, and a lower
+task cost must be interpreted alongside how the session ended.
 
+\clearpage
 \bibliographystyle{unsrt}
 \begingroup
 \raggedright
+\interlinepenalty=10000
 \bibliography{references}
 \endgroup
 

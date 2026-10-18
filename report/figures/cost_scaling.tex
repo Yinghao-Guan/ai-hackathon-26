@@ -1,0 +1,71 @@
+\begin{tikzpicture}
+\begin{groupplot}[
+group style={group size=3 by 1,horizontal sep=1.1cm},
+width=0.255\textwidth,height=4.1cm,scale only axis,
+tick label style={font=\scriptsize},label style={font=\footnotesize},
+title style={font=\footnotesize},xmin=0.8,xmax=8.5,xtick={1,2,4,8},
+xlabel={Shared context (1,000 tokens)},grid=major,grid style={black!8},
+legend style={font=\footnotesize,draw=none,at={(0.5,1.25)},anchor=south,legend columns=3},
+legend cell align=left]
+\nextgroupplot[title={(a) Prefill volume},ylabel={Prefill tokens (1,000)},ymin=0]
+\addplot+[thick,blue!65!black,mark=square*] coordinates {
+(1.101,5.599000)
+(2.100,9.595000)
+(4.095,17.575000)
+(8.114,33.651000)
+};
+\addplot+[thick,orange!85!black,mark=*] coordinates {
+(1.101,1.576000)
+(2.100,2.575000)
+(4.095,4.570000)
+(8.114,8.589000)
+};
+\addplot+[thick,black!55,dashed,mark=triangle*] coordinates {
+(1.101,1.355000)
+(2.100,2.354000)
+(4.095,4.349000)
+(8.114,8.368000)
+};
+\nextgroupplot[title={(b) Role-switch latency},ylabel={Switch TTFT (ms)},ymin=0]
+\addplot+[thick,blue!65!black,mark=square*] coordinates {
+(1.101,94.065116)
+(2.100,155.415543)
+(4.095,279.397058)
+(8.114,583.126916)
+};
+\addlegendentry{A2}
+\addplot+[thick,orange!85!black,mark=*] coordinates {
+(1.101,49.787821)
+(2.100,48.019287)
+(4.095,47.366825)
+(8.114,49.778724)
+};
+\addlegendentry{A5-H1}
+\addplot+[thick,black!55,dashed,mark=triangle*] coordinates {
+(1.101,49.324231)
+(2.100,47.613840)
+(4.095,48.933845)
+(8.114,47.696460)
+};
+\addlegendentry{A5-H2}
+\nextgroupplot[title={(c) Model-turn time},ylabel={Model time per session (s)},ymin=6.3,ymax=8.7]
+\addplot+[thick,blue!65!black,mark=square*,error bars/.cd,y dir=both,y explicit] coordinates {
+(1.101,6.556555) += (0,0.047926) -= (0,0.112935)
+(2.100,6.816296) += (0,0.432567) -= (0,0.177701)
+(4.095,7.193263) += (0,0.103174) -= (0,0.018478)
+(8.114,8.401819) += (0,0.060607) -= (0,0.045647)
+};
+\addplot+[thick,orange!85!black,mark=*,error bars/.cd,y dir=both,y explicit] coordinates {
+(1.101,6.838788) += (0,0.381276) -= (0,0.076682)
+(2.100,6.886308) += (0,0.087110) -= (0,0.081372)
+(4.095,7.011016) += (0,0.050333) -= (0,0.064259)
+(8.114,7.317563) += (0,0.234689) -= (0,0.154666)
+};
+\addplot+[thick,black!55,dashed,mark=triangle*,error bars/.cd,y dir=both,y explicit] coordinates {
+(1.101,6.870406) += (0,0.771051) -= (0,0.039257)
+(2.100,6.869228) += (0,0.063350) -= (0,0.045641)
+(4.095,6.973047) += (0,0.104018) -= (0,0.053485)
+(8.114,7.263824) += (0,0.010359) -= (0,0.061472)
+};
+\end{groupplot}
+\end{tikzpicture}

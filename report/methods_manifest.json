@@ -1,6 +1,6 @@
 {
-  "audit_date": "2026-10-17",
-  "git_commit": "df1fff6de06787b6c12b77d759c030c2f428e486",
+  "audit_date": "2026-10-18",
+  "git_commit": "08dbfb12be85b609afbd952e22e1568c0108ddb5",
   "source_hashes": {
     "rolekv/tasks.py": "6351bfe32709a81986898a8d1025930333e166d4eb944c70f8c5d8367adb6dc2",
     "train/build_dataset.py": "9dbca01ba314a6e89250838fc1b689ae4cc905ae5d8d46672bdd3b00869a4abd",
@@ -10,13 +10,17 @@
     "rolekv/eval_runner.py": "655561f3ae38a144e8206b88857eaa6c402228ae23889e70d000472dd3256f87",
     "rolekv/costs.py": "b9866a7a01dfa1863a6fa838630bb28a5fb2dbb3e542f001545ebc602a9c995d",
     "eval/testrun.py": "8e5cc084d1fd188418142e15c9a42d58c73eee179783a14bc29f9feb367afec7",
-    "eval/run_eval.py": "4ff99fa9c8680373e4f066656327987142668b988de5d6d43216de496a1fdff5",
+    "eval/run_eval.py": "b4e07de5831460e41799bad594d98486dd5bcddb70373a10384803a5f7493c9a",
     "docs/TRACKS.md": "3b66835b92046b857eced50a5ae7475b21a0b6660fa05ff22acc3f62e2c7733e",
-    "docs/STATUS.md": "0ef298f217a9b4f6c942544d5eb39e531ebf7aaaa422e301ea6316d7a73d0477",
+    "docs/STATUS.md": "d50fd8f282045d2f7d1e2caf4e1580db4fa5bd927130bb79446dfea875ce19d0",
     "rolekv/fast_alora.py": "594b900b63cfaed252460e3cecc4c8b1d63169895062c7f92d591b45637bd957",
-    "tests/test_fast_alora.py": "8de73d58ac423aef66ba882cad2c39a1afa67b070741cd52315a98070b87118d"
+    "tests/test_fast_alora.py": "8de73d58ac423aef66ba882cad2c39a1afa67b070741cd52315a98070b87118d",
+    "train/train_role_adapter.py": "eb90494ab184425761efa8c76c6656849dc35f803a07d289f6838bde573029b4",
+    "bench/cost_sweep.py": "f20b0d45bcb2a9ce4237a49437b72360d2d82af153793f18d568d824669528f2",
+    "tests/conftest.py": "7787c33431bf898c1bf65086da2ece660ab9f3333d614798768226c117a94808",
+    "tests/test_runtime.py": "2e4121dee5da012640730917fc23b4827bf6016a0a83aa1e0d8cbcc87cf6a71a"
   },
-  "scope": "Read-only inspection of current source and exported rows; no teacher calls, model training, or task evaluation.",
+  "scope": "Offline inspection of the main snapshot, exported data, five saved training records, 600 closed-loop task outcomes and 60 forced-trace sessions. No new training, generated-code execution, or GPU measurements.",
   "tokenizer": {
     "model": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
     "local_files_only": true
@@ -69,25 +73,33 @@
     }
   },
   "training": {
-    "status": "Team recipe only; actual script, checkpoint configs, and run arguments absent from inspected checkout.",
+    "status": "Verified against five committed train_run.json records; checkpoint weight tensors are not committed and were not independently reloaded in this audit.",
     "standard_lora_rank": 16,
     "alora_rank": 32,
     "alpha": "2 * rank",
     "learning_rate": 0.0002,
     "epochs": 2,
     "max_length": 4096,
-    "dtype": "bf16",
-    "gradient_checkpointing": true,
-    "revise_multiplicity_reported": 3,
+    "training_precision": "bf16 base, fp32 adapter, no autocast",
+    "inference_precision": "bf16 base and adapters, per runtime source and recorded eval protocol",
+    "gradient_checkpointing": "non-reentrant",
+    "revise_multiplicity": 3,
+    "optimizer": "AdamW(betas=(0.9, 0.999), eps=1e-8)",
+    "microbatch": 1,
+    "gradient_accumulation": 8,
+    "scheduler": "linear warm-up, then linear decay",
+    "warmup_fraction": 0.05,
+    "training_seed": 0,
+    "model_revision": "2e1fd397ee46e1388853d2af2c993145b0f1098a",
+    "recorded_training_commit": "79e1f6a24e5fc574ad6bbedfc2d4bbf756b91ce4",
+    "recorded_versions": {
+      "torch": "2.14.1+cu126",
+      "transformers": "5.20.1",
+      "peft": "0.21.2"
+    },
     "unverified_fields": [
-      "optimizer",
-      "batch_size",
-      "gradient_accumulation",
-      "scheduler",
-      "training_seed",
-      "actual_config",
-      "completed_epochs",
-      "checkpoint_revision"
+      "checkpoint weight-file hashes",
+      "teacher API revision and generation arguments"
     ]
   },
   "feedback": {
@@ -110,5 +122,47 @@
     ]
   },
   "source_files_changed_during_authoring": [],
-  "qualification": "Source hashes identify the inspected snapshot; concurrent changes are listed separately. Data statistics were recomputed from the listed exports, without rerunning generated code."
+  "qualification": "Source hashes identify the inspected main snapshot. Earlier tokenizer length statistics are retained after verifying unchanged data hashes. Training settings and gates are checked from saved metadata, not fresh model runs. GPU test outcomes are attributed to repository run notes; trained 1.5B bf16 cache equivalence is not independently established.",
+  "initial_audit": {
+    "date": "2026-10-17",
+    "commit": "df1fff6de06787b6c12b77d759c030c2f428e486"
+  },
+  "results": {
+    "summary": "report/results_summary.json",
+    "generator": "report/analyze_results.py",
+    "input_hashes": {
+      "eval/results/eval-1.5b-4090-202610180231.jsonl": "33699e83d61c93e763beabff5d0c9ffd023f6d113fcf5cabea61e7c6ff49880a",
+      "bench/results/cost_sweep_4090.jsonl": "2638133f75ac16457d4e43e08bc4a0d2417989e0b6917cf40e1812173fdc53ba",
+      "data/trajectories.jsonl": "a5fc31f774487bd14c1c262ccad78cd06fa088ea4eff373d005f88fadbfcb37f",
+      "data/sft_coder.jsonl": "ba3be511640388415f6eb05acd551bba5af24e8cfe3f581f9aca9eba69470906",
+      "data/sft_reviewer.jsonl": "5bcf59b7e32c481c9695ebd3c690e1d3a7766099d984ad339d84db1f1de8754a",
+      "train/results/1.5b/alora_coder/train_run.json": "2bf25add94279a50766ecfd390076d10ddb2830b1ae28485efb94cbf14dce7bd",
+      "train/results/1.5b/alora_reviewer/train_run.json": "e93ddcd1a327ed2c25854b87ebeb0f4cd2271ac2b6ecb7bf200b5d37e9df7559",
+      "train/results/1.5b/lora_all/train_run.json": "f56ff6b88611ae1b0058e9c702fa980d198081a33cbb0dbe60c3f1582b7c1d01",
+      "train/results/1.5b/lora_coder/train_run.json": "4eab33bce4628a0385289dc8d62055919afb2bb3caf4a726f44aede739b60477",
+      "train/results/1.5b/lora_reviewer/train_run.json": "797d3af02ba65be5b4545a66a0e727482cebf118b237ccde7b3b1426554904f2"
+    },
+    "evaluation_task_rows": 600,
+    "evaluation_turn_rows": 1923,
+    "fixed_trace_sessions": 60,
+    "fixed_trace_generated_tokens": 197,
+    "evaluation_context_tokens": {
+      "min": 1280,
+      "median": 1804.0,
+      "max": 2710
+    },
+    "same_100_tasks_all_methods": true,
+    "train_eval_task_ids_disjoint": true,
+    "paired_A2_H1": {
+      "both_pass": 51,
+      "only_A2": 8,
+      "only_H1": 10,
+      "neither_pass": 31,
+      "exact_mcnemar_p": 0.8145294189453125
+    },
+    "end_to_end_task_wall_time_recorded": false,
+    "fresh_gpu_tests_run_during_report_audit": false,
+    "illustrative_case_task_id": 135,
+    "illustrative_case_selection": "Illustrates unchanged code followed by a false second approval; not representative."
+  }
 }
