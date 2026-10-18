@@ -14,7 +14,7 @@
 | Training script | Member A | | |
 | Data | Member B | | |
 | Eval driver | Member B | Not started | Runtime API ready: [CONTRACT.md §6](CONTRACT.md#6-runtime-api-runtime--eval) |
-| Demo | Member C | | |
+| Demo | Member C | Dashboard merged (PR #1) | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
 
@@ -58,6 +58,7 @@
 
 **Member C (demo)**
 
+- The dashboard from PR #1 already follows the points below; they are listed for reference.
 - Event log semantics changed ([CONTRACT.md §3](CONTRACT.md#3-event-log-runtime--eval--demo)):
   - `canon_tokens` is counted in the turn that does the recompute, and that turn's `ttft_ms` includes it.
   - "Recomputed" in charts = `prefill_tokens + canon_tokens`.
