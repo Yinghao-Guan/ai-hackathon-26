@@ -2,5 +2,5 @@
 
 Verified trajectories: 280
 
-- `sft_coder.jsonl`: 338 rows; SHA-256 `830f1fa24d4171ddba1c5980fd772c6881ff115e6263e7bcdd725280d6b02b42`
-- `sft_reviewer.jsonl`: 280 rows; SHA-256 `80e5c5057164c0b3512b0c0240cbe1eb112d4bb2b30ec5f95253fb87dcde513f`
+- `sft_coder.jsonl`: 338 rows; SHA-256 `ba3be511640388415f6eb05acd551bba5af24e8cfe3f581f9aca9eba69470906`
+- `sft_reviewer.jsonl`: 280 rows; SHA-256 `5bcf59b7e32c481c9695ebd3c690e1d3a7766099d984ad339d84db1f1de8754a`
