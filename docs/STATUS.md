@@ -10,7 +10,7 @@
 | Environment | Lead | Done | `uv sync` installs everything, pinned by `uv.lock` |
 | Prompt contract (`rolekv/roles.py`) | Lead | Done, frozen | |
 | Runtime core | Lead | Done on Mac CPU | 28 tests pass; CUDA/bf16 check on the 4090 pending |
-| Cost sweep (`bench/cost_sweep.py`) | Lead | Done on Mac; 4090 run pending | Results in `bench/results/`; see Changes below |
+| Cost sweep (`bench/cost_sweep.py`) | Lead | Mac and 4090 done; 4090 re-run pending after a decode fix | Results in `bench/results/` on `peter`; see Changes below |
 | 4090 machine | Lead | Environment ready (Windows + WSL2); runtime tests and cost sweep pending | All training and timing in WSL2. [TRACKS.md › 4090 machine](TRACKS.md#4090-machine--lead-rtx-4090-laptop) |
 | Training script | Member A | | |
 | Data | Member B | 280 trajectories in `data/` | Checked by Lead against CONTRACT §2: all rows valid, max 2,829 tokens. Reviewer labels are 79% APPROVE (see Changes) |
@@ -18,6 +18,30 @@
 | Demo | Member C | Dashboard merged (PR #1) | Runs on mock logs; already counts compute as prefill + canon. Real 4090 sample: 4090 machine step 4 |
 
 ## Changes
+
+### 2026-10-17: first 4090 numbers, and a decode fix
+
+The 4090 ran the same cost sweep: WSL2, 1.5B in bf16, untrained adapters, the forced 4-turn session, and
+5 repeats. Token counts are identical to the Mac run turn by turn, as expected.
+
+| Context | Switch TTFT: A2 → A5-H1 | GPU s / session: A2 → A5-H1 |
+|---|---|---|
+| 1k | 124 → 54 ms (2.3×) | 7.4 → 8.1 s |
+| 2k | 214 → 53 ms (4.0×) | 7.8 → 8.2 s |
+| 4k | 386 → 54 ms (7.2×) | 8.4 → 8.3 s |
+| 8k | 796 → 56 ms (14×) | 10.1 → 8.6 s |
+
+- **TTFT:** A5-H1's switch TTFT stays flat at ~54 ms, while A2's grows linearly with context.
+- **Session time:** A5-H1 decoded 15% slower per token than A2 in this run (41.0 vs 35.7 ms). So at 1k–2k
+  context its whole session was slower than A2's, even though every switch was faster.
+- **Cause and fix:** `PeftModel.forward` registers a hook on every LoRA layer at every aLoRA call, which costs
+  ~5 ms per token on the 4090.
+  - The runtime on `peter` now bypasses it: one persistent hook per layer, installed once.
+  - On the Mac, aLoRA and LoRA now decode equally fast (28.7 vs 28.2 ms per token).
+- **Next:** the 4090 sweep is being re-run with the fix, and these numbers will be replaced.
+  - **Member C:** use the TTFT column now (it will only get a few ms faster), but keep the session-time column
+    out of the pitch until the re-run.
+- The result files are in `bench/results/` on the `peter` branch until it is merged into `main`.
 
 ### 2026-10-17: 4090 is ready; train and time it in WSL2
 
