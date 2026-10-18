@@ -105,6 +105,7 @@ def evaluate(
                 "passed": test_result.passed,
                 "n_turns": len(normalized_turns),
                 "prefill_tokens_total": sum(turn["prefill_tokens"] + turn["canon_tokens"] for turn in normalized_turns),
+                "canon_tokens_total": sum(turn["canon_tokens"] for turn in normalized_turns),
                 "decode_tokens_total": sum(turn["decode_tokens"] for turn in normalized_turns),
                 "gpu_s": session.get("gpu_s", time.monotonic() - started),
                 "peak_kv_mb": max(turn["kv_mb"] for turn in normalized_turns),
