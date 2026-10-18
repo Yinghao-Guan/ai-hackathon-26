@@ -105,7 +105,7 @@ invented, and deliberately not all in A5's favour.
 ```bash
 cd demo
 node --test tests/*.test.mjs     # Node 18+; no packages needed (npm test)
-python -m unittest discover -s tests -p "test_*.py"   # collect_logs.py; stdlib only (npm run test:py)
+python -m unittest discover -s tests -p "test_*.py"   # collect_logs.py, live/live_log.py; stdlib only (npm run test:py)
 ```
 
 The tests cover parsing and validation, pass rate, the headline ratio on paired tasks, sweep aggregation,
@@ -172,6 +172,9 @@ collect_logs.py       builds data/events.jsonl + data/sources.json from eval/res
 check_log.mjs         validates a log with js/metrics.js (used by collect_logs.py; also runs standalone)
 tests/*.test.mjs      metric, chart and tape tests (Node)
 tests/test_collect_logs.py
+tests/test_live_log.py
+live/live_log.py      records finished live runs as an event log for the dashboard (stdlib only)
+data/live/            live-demo recordings, one file per server session (not committed)
 data/events.jsonl     the real log the dashboard loads (generated; don't edit by hand)
 data/sources.json     which result files it was built from (generated)
 ```
@@ -198,6 +201,16 @@ with its text, its counters and its session tape.
   are exactly the same conversation and every difference comes from the cache. Off, each column generates its
   own replies with its own adapters, so the two sessions can differ in length.
 - **Cost** is time on GPU × a $/GPU-hour price you type in (default $0.50, an assumption, not a measured bill).
+- **Stats after the demo:** every finished run is recorded (`demo/live/live_log.py`) to
+  `demo/data/live/live-<machine>-<start time>.jsonl`, one file per server session, in the same event-log format
+  as the evals (`rolekv.costs.turn_record` / `task_record`). After a run the page says how many tasks were
+  recorded and links to **See the stats on the dashboard** (`dashboard.html?log=data/live/<file>`), which shows
+  the finding, cost vs quality and the replay over every task run live, with a **Back to live demo** link.
+  Running a task again replaces its earlier result; runs at another context size and same-transcript runs are
+  kept as separate runs (in a same-transcript run A2 copies RoleKV's replies, so its pass rate is RoleKV's);
+  a stopped run records only the sessions that finished. The machine label is detected (4090, 4070, mac) or set
+  with `--machine`; on any other device nothing is recorded and the page says why. `--no-record` turns it off.
+  Recordings are not committed (`demo/data/live/.gitignore`); copy a session elsewhere to keep it.
 
 **On the 4090 laptop** (WSL2, from the repo root, with the real adapters):
 

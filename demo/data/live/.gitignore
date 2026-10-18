@@ -1,0 +1,4 @@
+# Live-demo recordings (demo/live/live_log.py): one file per server session. Not committed;
+# copy a session into eval/results/ or elsewhere if it should be kept.
+*
+!.gitignore

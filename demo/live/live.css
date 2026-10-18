@@ -161,3 +161,7 @@
   .bname { font-size: 14px; white-space: normal; }
   .bname small { display: none; }
 }
+
+/* After a run: the recorded session and the way to its stats on the dashboard. */
+.live-record { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 6px var(--gutter) 18px; max-width: 72em; }
+.live-record p { margin: 0; }

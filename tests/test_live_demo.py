@@ -126,6 +126,38 @@ def test_live_session_streams_engine_costs(live, engines, tokenizer):
         assert a5_turn["computed_tokens"] < a2_turn["computed_tokens"]
 
 
+def test_live_log_records_what_the_eval_would(live, engines, tmp_path):
+    """demo/live/live_log.py writes the same records as rolekv.costs.turn_record / task_record, so the dashboard
+    reads a live session exactly like an eval run. Floats are rounded in the stream, hence approx."""
+    import json
+
+    from rolekv.costs import task_record, turn_record
+
+    recorded = {m: record_turns(e) for m, e in engines.items()}
+    request = {"task": TASK, "ctx_funcs": 2, "mirror": False, "usd_per_gpu_hour": 0.5}
+    log = live.LiveLog.for_session(tmp_path, "4090")
+    for event in live.compare_sessions(engines, TASK, segment(), max_new_tokens=LIMITS, run_tool=fixed_tool):
+        log.observe(event, request)
+    rows = [json.loads(line) for line in log.path.read_text(encoding="utf-8").splitlines()]
+
+    for m, results in recorded.items():
+        run_id = log.run_id(m, 2, False)
+        mine = [r for r in rows if r["run_id"] == run_id]
+        ids = {"run_id": run_id, "machine": "4090", "method": m, "task_id": TASK["task_id"]}
+        expected = [turn_record(r.cost, **ids, turn=i) for i, r in enumerate(results)]
+        cost = summarize([r.cost for r in results], engines[m].ctx_tokens)
+        expected.append(task_record(cost, **ids, passed=mine[-1]["passed"]))
+        assert len(mine) == len(expected)
+        for got, want in zip(mine, expected, strict=True):
+            assert set(got) == set(want)
+            for key, value in want.items():
+                if isinstance(value, float):
+                    assert got[key] == pytest.approx(value, abs=0.01), key
+                else:
+                    assert got[key] == value, key
+        assert isinstance(mine[-1]["passed"], bool)
+
+
 def test_protocol_matches_run_session(live, engines, model, tokenizer):
     """Two REVISEs, then a final Coder turn: same turns, verdicts and token counts as run_session."""
     wrong = "```python\ndef square(x):\n    return x + x\n```"

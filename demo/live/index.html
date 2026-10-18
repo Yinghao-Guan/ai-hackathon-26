@@ -23,7 +23,7 @@
     <div class="topbar-actions">
       <span class="rig" id="rig">Connecting to the model server</span>
       <span class="mode-tag" data-mode="mock" id="smoke-tag" hidden>Smoke adapters: output quality is not meaningful</span>
-      <a class="btn quiet" href="../dashboard.html">Dashboard</a>
+      <a class="btn quiet" id="dash-link" href="../dashboard.html">Dashboard</a>
     </div>
   </header>
 
@@ -101,6 +101,7 @@
       </header>
     </section>
     <section class="finals" id="finals" aria-label="Results"></section>
+    <section class="live-record" id="live-record" aria-live="polite" hidden></section>
 
     <section class="live-notes">
       <ul class="key" aria-label="Tape key">

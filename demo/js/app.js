@@ -82,7 +82,11 @@ function renderStatus() {
   tag.textContent = state.dataset.mode === "mock" ? "Mock data — not results" : "Real data";
   const log = new URLSearchParams(location.search).get("log");
   $("present-link").href = `?present${log ? `&log=${encodeURIComponent(log)}` : ""}${state.replay.task ? `&task=${encodeURIComponent(state.replay.task)}` : ""}`;
+  $("live-link").hidden = !isLiveLog();
 }
+
+/** A log recorded by the live demo server (demo/live/live_log.py), opened from the live page. */
+const isLiveLog = () => (new URLSearchParams(location.search).get("log") ?? "").startsWith("data/live/");
 
 /** The banner only speaks when something needs attention; mock mode is carried by the tag and the finding note. */
 function renderBanner() {
@@ -147,6 +151,12 @@ function renderFinding() {
 
   if (isMock()) {
     notes.append(el("p", { class: "note warn", text: "Computed from the mock fixture. It demonstrates the dashboard, not RoleKV's results." }));
+  }
+  if (isLiveLog() && state.dataset.mode === "real") {
+    notes.append(el("p", { class: "note", text: "From the live demo: only the tasks run live in this server session, not the 100-task evaluation. Timings are from this machine." }));
+  }
+  if (/-mirror-/.test(a.selection.byMethod.A2?.run?.run_id ?? "")) {
+    notes.append(el("p", { class: "note warn", text: "These are same-transcript runs: per-role LoRAs replay RoleKV's replies, so the token counts compare the caches but the pass rates are RoleKV's for both." }));
   }
   if (h.ok && !a.headlineTrusted) {
     const parts = a.headAudit.filter((x) => !x.audit.clean).map((x) => `in ${x.run.run_id}, ${auditSummary(x.audit.counts).join(", ")}`);

@@ -34,12 +34,14 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 DEMO_DIR = ROOT / "demo"
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+for _path in (ROOT, Path(__file__).resolve().parent):  # the repo, and live_log.py next to this file
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 import torch  # noqa: E402
 
 from eval.testrun import TestResult, run_mbpp_task  # noqa: E402
+from live_log import LiveLog  # noqa: E402
 from rolekv import roles  # noqa: E402
 from rolekv.costs import summarize  # noqa: E402
 from rolekv.runtime import MAX_NEW_TOKENS, Engine, TurnResult, extract_code, forced_ids  # noqa: E402
@@ -315,10 +317,11 @@ class Worker:
     """Runs jobs one at a time on the shared model. `lock` guards every use of the model."""
 
     def __init__(self, engines: Mapping[str, Engine], training_rows: Sequence[Mapping[str, Any]], *,
-                 max_new_tokens: Mapping[str, int] | None = None):
+                 max_new_tokens: Mapping[str, int] | None = None, log: LiveLog | None = None):
         self.engines = dict(engines)
         self.training_rows = training_rows
         self.max_new_tokens = max_new_tokens
+        self.log = log  # records finished sessions for the dashboard (live_log.py)
         self.lock = threading.Lock()
         self._jobs: queue.Queue = queue.Queue()
         self._state = threading.Lock()
@@ -361,8 +364,14 @@ class Worker:
                     for event in events:
                         if event["type"] == "start":
                             event["ctx_funcs"] = req["ctx_funcs"]
+                        if self.log is not None:
+                            self.log.observe(event, req)
+                            if event["type"] in ("done", "cancelled"):
+                                event["log"] = self.log.summary()  # where the page finds this run's stats
                         job.events.put(event)
             except Exception as exc:  # report to the page, keep serving
+                if self.log is not None:
+                    self.log.observe({"type": "error"}, job.request)  # drop the unfinished run
                 job.events.put({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
                 print(f"run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
             finally:
@@ -413,7 +422,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", "/live/")
             self.end_headers()
         elif path == "/api/info":
-            self._json({**self.app.info, "busy": self.app.worker.busy})
+            log = self.app.worker.log
+            self._json({**self.app.info, "busy": self.app.worker.busy, "live_log": log.summary() if log else None})
         elif path == "/api/tasks":
             self._json([{"task_id": t["task_id"], "text": t["text"], "test_list": list(t["test_list"])}
                         for t in self.app.tasks])
@@ -491,6 +501,14 @@ def device_name(device: torch.device) -> str:
     return "CPU"
 
 
+def default_machine(device: torch.device) -> str:
+    """The event log's machine label, detected as bench/cost_sweep.py does (4090, 4070, mac, ...)."""
+    if device.type == "cuda":
+        name = torch.cuda.get_device_name(device)
+        return next((gpu for gpu in ("4090", "4070") if gpu in name), "cuda")
+    return "mac" if sys.platform == "darwin" else device.type
+
+
 def adapter_info(adapter_dir: Path) -> list[dict]:
     """What the training runs recorded about each adapter (train/train_role_adapter.py's train_run.json)."""
     rows = []
@@ -539,6 +557,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ctx-funcs", type=int, default=30, help="utils.py functions in the context (eval: 30)")
     parser.add_argument("--max-coder-tokens", type=int, default=MAX_NEW_TOKENS["coder"])
     parser.add_argument("--max-reviewer-tokens", type=int, default=MAX_NEW_TOKENS["reviewer"])
+    parser.add_argument("--machine", default=None,
+                        help="machine label for the recorded runs (4090, 4070, mac); default: detected")
+    parser.add_argument("--no-record", action="store_true",
+                        help="don't write live runs to demo/data/live/ for the dashboard")
     return parser.parse_args(argv)
 
 
@@ -569,7 +591,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     warm_up(engines, [build_task_segment(tasks[0], training_rows, ctx_funcs=n) for n in ctx_options])
 
     limits = {"coder": args.max_coder_tokens, "reviewer": args.max_reviewer_tokens}
-    worker = Worker(engines, training_rows, max_new_tokens=limits)
+    log = None if args.no_record else LiveLog.for_session(DEMO_DIR / "data", args.machine or default_machine(device))
+    if log is not None:
+        print(f"recording live runs to {log.path}" if log.enabled else f"not recording live runs: {log.reason}",
+              flush=True)
+    worker = Worker(engines, training_rows, max_new_tokens=limits, log=log)
     adapters = adapter_info(args.adapters)
     updates = [a["updates"] for a in adapters if a["updates"] is not None]
     info = {

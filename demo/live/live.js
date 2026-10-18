@@ -18,6 +18,7 @@ const state = {
   running: false,
   run: null, // { start, turns: {method: [event]}, finals: {method: event}, cards: Map, pending: Map, scale, t0, wall }
   timer: null,
+  log: null, // where the server records finished runs for the dashboard (live_log.py summary)
 };
 
 // ---------- small helpers ----------
@@ -156,7 +157,33 @@ async function init() {
   renderCtx();
   renderTaskStrip();
   renderBoard();
+  state.log = info.live_log ?? null;
+  renderRecord();
   if (info.busy) busyBanner();
+}
+
+/** After a run: how many tasks this server session has recorded, and the way to their stats. */
+function renderRecord() {
+  const box = $("live-record");
+  const log = state.log;
+  const link = $("dash-link");
+  const recorded = log?.enabled && log.sessions > 0;
+  link.href = recorded ? log.dashboard : "../dashboard.html";
+  link.textContent = recorded ? "Dashboard: this session" : "Dashboard";
+  if (!log) { box.hidden = true; return; }
+  if (!log.enabled) {
+    box.replaceChildren(el("p", { class: "note", text: `Live runs are not being recorded: ${log.reason}.` }));
+    box.hidden = false;
+    return;
+  }
+  if (!recorded) { box.hidden = true; return; }
+  box.replaceChildren(
+    el("p", {},
+      el("b", { text: `${log.tasks} ${log.tasks === 1 ? "task" : "tasks"} recorded this session. ` }),
+      "Every finished run is saved for the dashboard: tokens computed, first-token times and pass rates over all of them."),
+    el("a", { class: "btn primary", href: log.dashboard, text: "See the stats on the dashboard" }),
+    el("p", { class: "note", text: `Saved to demo/${log.path}. Runs at another context size, and same-transcript runs, are kept as separate runs there.` }));
+  box.hidden = false;
 }
 
 function busyBanner() {
@@ -269,6 +296,7 @@ function onEvent(type, ev) {
   } else if (type === "done" || type === "cancelled") {
     r.ended = type;
     r.wall = ev.wall_s;
+    if (ev.log) { state.log = ev.log; renderRecord(); }
     if (type === "cancelled") banner("warn", "Stopped.", "The run was stopped after the turn in progress.");
   } else if (type === "error") {
     r.ended = "error";
